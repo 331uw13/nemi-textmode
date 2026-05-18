@@ -13,6 +13,9 @@ typedef struct Buffer_t {
     size_t  num_row_nodes_alloc;
     size_t  num_rows;
 
+    int     max_row;
+    int     max_col;
+
     ssize_t cursor_row;
     ssize_t cursor_col;
 

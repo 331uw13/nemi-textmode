@@ -99,6 +99,10 @@ Buffer* buffer_allocate() {
     buf->col_offset = 0;
     buf->input_mode = IMODE_INSERT;
 
+    Nemi* nemi = nmt_getst();
+    buf->max_row = nemi->win_rows;
+    buf->max_col = nemi->win_cols;
+
     buffer_insert_row(buf, 0);
 
 
