@@ -1,6 +1,10 @@
+#include <assert.h>
 
 #include "buffer.h"
+#include "text_mode.h"
+
 #include "log.h"
+
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -29,7 +33,7 @@ void print_buffer_linked_list(Buffer* buf) {
 
 */
 
-static
+static // Temporary function.
 void validate_linked_list(Buffer* buf) {
     bool error = false;
     Bufrow* row = buf->rows_head;
@@ -86,24 +90,30 @@ void validate_linked_list(Buffer* buf) {
     printf("\n");
 }
 
+
+
 Buffer* buffer_allocate() {
     Buffer* buf = malloc(sizeof *buf);
-    buf->rows = NULL;
-    buf->rows_head = NULL;
-    buf->num_row_nodes = 0;
-    buf->num_row_nodes_alloc = 0;
-    buf->num_rows = 0;
+    buf->rows = malloc(sizeof *buf->rows);
+    bufrow_allocate(&buf->rows[0]);
+    buf->rows_head = &buf->rows[0];
+    buf->rows_tail = &buf->rows[0];
+
+    //buf->num_row_nodes = 0;
+    //buf->num_row_nodes_alloc = 0;
+    buf->num_rows = 1;
     buf->cursor_col = 0;
     buf->cursor_row = 0;
     buf->row_offset = 1; // Leave room for title bar.
     buf->col_offset = 0;
+    buf->yscroll = 0;
     buf->input_mode = IMODE_INSERT;
+   
+    TXModest* txmst = get_txmst();
+    buf->max_row = txmst->term->rows;
+    buf->max_col = txmst->term->cols;
 
-    Nemi* nemi = nmt_getst();
-    buf->max_row = nemi->win_rows;
-    buf->max_col = nemi->win_cols;
-
-    buffer_insert_row(buf, 0);
+    //buffer_insert_row(buf, 0);
 
 
     //print_buffer_linked_list(buf);
@@ -112,16 +122,29 @@ Buffer* buffer_allocate() {
 }
 
 void buffer_free(Buffer* buf) {
-    for(size_t i = 0; i < buf->num_row_nodes; i++) {
-        bufrow_free(&buf->rows[i]);
+    Bufrow* row = buf->rows_tail;
+    while(row) {
+        Bufrow* prev = row->prev;
+        
+        bufrow_free(row);
+        if(row->next) {
+            free(row->next);
+        }
+
+        row = prev;
     }
 
-    buf->num_row_nodes = 0;
     free(buf->rows);
-
     free(buf);
 }
 
+int buffer_real_max_row(Buffer* buf) {
+    return buf->max_row - buf->row_offset;
+}
+
+int buffer_real_max_col(Buffer* buf) {
+    return buf->max_col - buf->col_offset;
+}
 
 void buffer_move_cursor_to(Buffer* buf, ssize_t row, ssize_t col) {
     Bufrow* bufrow = buffer_get_row(buf, row);
@@ -147,8 +170,20 @@ void buffer_move_cursor_to(Buffer* buf, ssize_t row, ssize_t col) {
     if(buf->cursor_col > bufrow->len) {
         buf->cursor_col = bufrow->len;
     }
-}
 
+
+    /*
+    if(buf->cursor_row >= buffer_real_max_row(buf)) {
+        buffer_yscroll(buf, 1);
+    }
+    */
+    
+    /*else
+    if(buf->cursor_row <= buf->yscroll) {
+        buffer_yscroll(buf, -1);
+    }
+    */
+}
 
 void buffer_move_cursor(Buffer* buf, int row_offset, int col_offset) {
     buffer_move_cursor_to(buf, 
@@ -156,67 +191,46 @@ void buffer_move_cursor(Buffer* buf, int row_offset, int col_offset) {
             buf->cursor_col + col_offset);
 }
 
+void buffer_yscroll_to(Buffer* buf, ssize_t position) {
+    if(position < 0) {
+        return;
+    }
+
+    buf->yscroll = position;
+}
+
+void buffer_yscroll(Buffer* buf, int offset) {
+    buffer_yscroll_to(buf, buf->yscroll + offset);
+}
+
 bool buffer_insert_row(Buffer* buf, size_t position) {
-    if(position > buf->num_row_nodes + 1) {
-        return false;
-    }
-
-
-    if(buf->num_row_nodes_alloc <= position) {
-        size_t new_num_row_nodes = (size_t)position + 64;
-        buf->rows 
-            = realloc
-            (
-                buf->rows,
-                new_num_row_nodes * sizeof *buf->rows
-            );
-    
-        for(size_t i = buf->num_row_nodes;
-                   i < new_num_row_nodes; i++) {
-            bufrow_allocate(&buf->rows[i]);
-        }
-
-        buf->num_row_nodes_alloc = new_num_row_nodes;
-        logprintf(LOG_INFO, "Allocated some rows!");
-    }
-
-    if(buf->rows_head == NULL) {
-        buf->rows_head = &buf->rows[0];
-    }
-    
-
-    Bufrow* new_row = &buf->rows[buf->num_row_nodes++];
     Bufrow* row = buffer_get_row(buf, position);
-
     if(row == NULL) {
         return false;
     }
 
-    if(new_row != row) {
-    
-        new_row->next = row->next;
-        row->next = new_row;
-       
-        if(new_row->next) {
-            new_row->next->prev = new_row; 
-        }
+    Bufrow* new_row = malloc(sizeof(Bufrow));
+    bufrow_allocate(new_row);
 
-        new_row->prev = row;
+    new_row->prev = row;
+    new_row->next = row->next;
+
+    if(row->next) {
+        row->next->prev = new_row;
     }
 
-    if(new_row->prev == NULL) {
-        buf->rows_head = new_row;
+    row->next = new_row;
+
+
+    bool at_tail = row == buf->rows_tail;
+    if(at_tail) {
+        buf->rows_tail = new_row;
     }
 
     buf->num_rows++;
+    validate_linked_list(buf);
 
-
-    // Set below rows to re-written to terminal.
-    while(row) {
-        row->dirty = true;
-        row = row->next;
-    }
-
+    buf->num_row_nodes++;
     return true;
 }
 
@@ -234,6 +248,9 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
 
     if(row->next) {
         row->next->prev = row->prev;
+    }
+    else {
+        buf->rows_tail = row;
     }
 
     if(row->prev) {

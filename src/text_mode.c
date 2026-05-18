@@ -62,15 +62,33 @@ Buffer* add_new_buffer() {
 static
 void p_update_buffer_to_terminal(Buffer* buf) {
 
-    int row_counter = 0;
-    Bufrow* row = buffer_get_row(buf, 0);
-    
+    ssize_t row_counter = 0;
+    Bufrow* row = buffer_get_row(buf, buf->yscroll);
+   
+
+
+    char linenum_buf[32] = { 0 };
+
+    buf->col_offset = snprintf(linenum_buf, sizeof(linenum_buf)-1,
+            "%li", buf->num_rows) + 1;
+
+
     nmterm_clear_row(g_txmst->term, buf->num_rows+1);
     while(row) {
         if(row->dirty) {
             int real_row = buf->row_offset + row_counter;
-
             nmterm_clear_row(g_txmst->term, real_row);
+
+            ssize_t linenum_buf_len 
+                = snprintf(linenum_buf, sizeof(linenum_buf)-1, "\033[90m%li\033[0m", row_counter);
+            nmterm_mv_putstrn
+            (
+                g_txmst->term,
+                real_row,
+                0,
+                linenum_buf,
+                linenum_buf_len
+            );
 
             for(size_t col = 0; col < row->len; col++) {
 
@@ -87,6 +105,10 @@ void p_update_buffer_to_terminal(Buffer* buf) {
 
         row = row->next;
         row_counter++;
+
+        if(row_counter >= buffer_real_max_row(buf)) {
+            break;
+        }
     }
 }
 

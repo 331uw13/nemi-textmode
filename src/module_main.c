@@ -33,7 +33,7 @@ void module_event_render() {
             buffer->cursor_col + buffer->col_offset);
 
     int cursor_y = nmt_rowtoy(nemi, 
-            buffer->cursor_row + buffer->row_offset);
+            buffer->cursor_row + buffer->row_offset - buffer->yscroll);
 
     leaf_draw_rect
     (
@@ -70,7 +70,9 @@ void module_event_render() {
     switch(buffer->input_mode) {
         case IMODE_INSERT:
             snprintf(title_str, sizeof(title_str)-1,
-                    "mode:insert / rows:%li", buffer->num_rows);
+                    "mode:insert / rows:%li / sc:%li",
+                    buffer->num_rows,
+                    buffer->yscroll);
             nemi->font.char_color_r = 0.7f;
             nemi->font.char_color_g = 0.36f;
             nemi->font.char_color_b = 0.3f;
@@ -170,6 +172,19 @@ void module_event_char_input(char ch) {
     update_text_to_terminal();
 }
 
+
+void module_event_window_resized() {
+    TXModest* txmst = get_txmst();
+    for(size_t i = 0; i < MAX_BUFFERS; i++) {
+        Buffer* buffer = txmst->buffers[i];
+        if(buffer == NULL) {
+            continue;
+        }
+    
+        buffer->max_row = txmst->term->rows;
+        buffer->max_col = txmst->term->cols;
+    }
+}
 
 void toggle_module() {
     Nemi* nemi = nmt_getst();

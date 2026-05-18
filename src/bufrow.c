@@ -13,7 +13,7 @@ void bufrow_allocate(Bufrow* row) {
     row->next = NULL;
     row->len = 0;
     row->memsize = 0;
-    row->dirty = false;
+    row->dirty = true;
 }
 
 void bufrow_free(Bufrow* row) {
@@ -53,7 +53,7 @@ void bufrow_insert_char(Bufrow* row, ssize_t position, char c) {
 }
 
 void bufrow_delete_char(Bufrow* row, ssize_t position) {
-    if(row->len == 0 || position < 0) {
+    if(row->data == NULL || row->len == 0 || position < 0) {
         return;
     }
     if(position >= (ssize_t)row->len) {
