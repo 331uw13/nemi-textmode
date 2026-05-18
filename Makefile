@@ -21,12 +21,7 @@ LD_FLAGS = \
 		   -L$(LIBNEMI_DIR) \
 		   -lnemi
 
-all: $(TARGET) post_build
-
-
-post_build:
-	@echo -e "\033[1;32mBuild complete!\033[0m"
-	@cp -v $(TARGET) $(LIBNEMI_DIR)/modules/
+all: $(TARGET) 
 
 SRC_FILES = $(shell find $(SRC_DIR) -type f -name '*.c')
 OBJ_FILES = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRC_FILES))
@@ -41,6 +36,8 @@ $(OBJ_FILES): $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 $(TARGET): $(OBJ_FILES)
 	@echo "link"
 	$(CC) $(LD_FLAGS) $(OBJ_FILES) -o $@
+	@echo -e "\033[1;32mBuild complete!\033[0m"
+	@cp -v $(TARGET) $(LIBNEMI_DIR)/modules/
 
 
 clean:

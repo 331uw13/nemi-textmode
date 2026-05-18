@@ -70,7 +70,63 @@ void bufrow_delete_char(Bufrow* row, ssize_t position) {
 }
 
 
+void bufrow_cut(Bufrow* row, ssize_t position, size_t len) {
+    if(position + len > row->len) {
+        return;
+    }
 
+    // TODO: Set chars to zero and shift once by 'len'.
+    for(size_t i = 0; i < len; i++) {
+        bufrow_delete_char(row, position);
+    }
+}
 
+BufrowSubstr bufrow_substr (Bufrow* row, ssize_t position, size_t len) {
+    BufrowSubstr substr = {
+        .data_ptr = NULL,
+        .len = 0
+    };
+
+    if(position + len > row->len) {
+        goto out;
+    }
+
+    substr.data_ptr = row->data + position;
+    substr.len = len;
+
+out:
+    return substr;
+}
+
+BufrowSubstr bufrow_substr_p(Bufrow* row, ssize_t begin, ssize_t end) {
+    BufrowSubstr substr = {
+        .data_ptr = NULL,
+        .len = 0
+    };
+
+    if(begin > end) {
+        goto out;
+    }
+
+    if(end > (ssize_t)row->len) {
+        goto out;
+    }
+
+    substr.data_ptr = row->data + begin;
+    substr.len      = end - begin;
+
+out:
+    return substr;
+}
+
+void bufrow_insert_substr(Bufrow* row, ssize_t position, BufrowSubstr substr) {
+    if(position > row->len || substr.data_ptr == NULL || substr.len == 0) {
+        return;
+    }
+
+    for(size_t i = 0; i < substr.len; i++) {
+        bufrow_insert_char(row, position + i, substr.data_ptr[i]);
+    }
+}
 
 

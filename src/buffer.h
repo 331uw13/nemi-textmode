@@ -37,6 +37,8 @@ bool buffer_delete_row     (Buffer* buf, size_t position);
 Bufrow* buffer_get_row  (Buffer* buf, ssize_t position);
 
 
+void buffer_eventkey_enter     (Buffer* buf, Bufrow* row);
+void buffer_eventkey_backspace (Buffer* buf, Bufrow* row);
 /*
 void buffer_insert_char (Buffer* buf, ssize_t row, ssize_t column, char c);
 void buffer_delete_char (Buffer* buf, ssize_t row, ssize_t column);

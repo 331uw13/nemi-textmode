@@ -3,6 +3,8 @@
 
 #include "nemi.h"
 
+#include <stdio.h>
+
 
 void handle_input_mode_insert_keypress(int key, int mods) {
     TXModest* txmst = get_txmst();
@@ -15,10 +17,6 @@ void handle_input_mode_insert_keypress(int key, int mods) {
 
     switch(key) {
 
-        case GLFW_KEY_BACKSPACE:
-            bufrow_delete_char(row, buffer->cursor_col-1);
-            buffer_move_cursor(buffer, 0, -1);
-            break;
 
         case GLFW_KEY_I:
             if(mods & GLFW_MOD_CONTROL) {
@@ -43,30 +41,16 @@ void handle_input_mode_insert_keypress(int key, int mods) {
             }
             break;
 
-
-
         case GLFW_KEY_ENTER:
-            {
-                if(!buffer_insert_row(buffer, buffer->cursor_row)) {
-                    logprintf(LOG_ERROR, "(textmode.so) Failed to insert row (enter)");
-                    return;
-                }
+            buffer_eventkey_enter(buffer, row);
+            break;
 
-                Bufrow* row_below = row->next;
-
-                if(buffer->cursor_col >= row->len) {
-                    buffer_move_cursor_to(buffer, buffer->cursor_row+1, 0);
-                }
-
-
-
-            }
+        case GLFW_KEY_BACKSPACE:
+            buffer_eventkey_backspace(buffer, row);
             break;
     }
-
 }
 
-#include <stdio.h>
 
 void handle_input_mode_insert_charpress(char c) {
     TXModest* txmst = get_txmst();
@@ -74,7 +58,6 @@ void handle_input_mode_insert_charpress(char c) {
 
     Bufrow* row = buffer_get_row(buffer, buffer->cursor_row);
     if(row == NULL) {
-        printf("%s: This fucked up.\n",__func__);
         return;
     }
 

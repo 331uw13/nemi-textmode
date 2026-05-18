@@ -27,6 +27,7 @@ void print_buffer_linked_list(Buffer* buf) {
     printf("#############################\n\n");
 }
 
+*/
 
 static
 void validate_linked_list(Buffer* buf) {
@@ -67,7 +68,9 @@ void validate_linked_list(Buffer* buf) {
         printf(" | ");
 
         if(row->data) {
-            printf("%s", row->data);
+            for(size_t l = 0; l < row->len; l++) {
+                printf("%c", row->data[l]);
+            }
         }
 
         printf("\n");
@@ -82,7 +85,6 @@ void validate_linked_list(Buffer* buf) {
     }
     printf("\n");
 }
-*/
 
 Buffer* buffer_allocate() {
     Buffer* buf = malloc(sizeof *buf);
@@ -203,21 +205,28 @@ bool buffer_insert_row(Buffer* buf, size_t position) {
     }
 
     buf->num_rows++;
+
+
+    // Set below rows to re-written to terminal.
+    while(row) {
+        row->dirty = true;
+        row = row->next;
+    }
+
     return true;
 }
 
 bool buffer_delete_row(Buffer* buf, size_t position) {
+    if(buf->num_rows == 1) {
+        return false;
+    }
+    
+   // validate_linked_list(buf);
 
     Bufrow* row = buffer_get_row(buf, position);
     if(row == NULL) {
         return false;
     }
-
-    for(size_t i = 0; i < position; i++) {
-        if(!row->next) { break; }
-        row = row->next;
-    }
-
 
     if(row->next) {
         row->next->prev = row->prev;
@@ -230,13 +239,24 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
         buf->rows_head = row->next;
     }
 
+    
+    // Set below rows to re-written to terminal.
+    Bufrow* row_iter = row;
+    while(row_iter) {
+        row_iter->dirty = true;
+        row_iter = row_iter->next;
+    }
 
     row->next = NULL;
     row->prev = NULL;
 
 
-    printf("Remove %p | TODO: Nodes may become fragmented.\n", row);
-    buf->num_rows++;
+
+
+    //validate_linked_list(buf);
+
+    printf("Remove %p  \033[33mTODO: Nodes may become fragmented.\033[0m\n", row);
+    buf->num_rows--;
 
     return true;
 }
@@ -256,4 +276,45 @@ Bufrow* buffer_get_row(Buffer* buf, ssize_t position) {
 }
 
 
+void buffer_eventkey_enter(Buffer* buf, Bufrow* row) {
+    if(!buffer_insert_row(buf, buf->cursor_row)) {
+        logprintf(LOG_ERROR, "(textmode.so) Failed to insert row (enter)");
+        return;
+    }
+
+    // This is the new inserted row.
+    Bufrow* row_below = row->next; 
+
+    if(buf->cursor_col < row->len) {
+        BufrowSubstr substr = bufrow_substr_p(row, buf->cursor_col, row->len);
+    
+        bufrow_insert_substr(row_below, 0, substr);
+        bufrow_cut(row, buf->cursor_col, row->len - buf->cursor_col);
+    }
+        
+    buffer_move_cursor_to(buf, buf->cursor_row+1, 0);
+}
+
+void buffer_eventkey_backspace(Buffer* buf, Bufrow* row) {
+    if(buf->cursor_col > 0) {
+        bufrow_delete_char(row, buf->cursor_col-1);
+        buffer_move_cursor(buf, 0, -1);
+        return;
+    }
+
+    if(row->len == 0) {
+        buffer_delete_row(buf, buf->cursor_row);
+        buffer_move_cursor(buf, -1, 0);
+    }
+    else
+    if(row->prev) {
+
+        size_t above_row_old_len = row->prev->len;
+        BufrowSubstr substr = bufrow_substr_p(row, 0, row->len);
+        bufrow_insert_substr(row->prev, row->prev->len, substr);
+
+        buffer_delete_row(buf, buf->cursor_row);
+        buffer_move_cursor_to(buf, buf->cursor_row-1, above_row_old_len);
+    }
+}
 

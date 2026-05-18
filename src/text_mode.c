@@ -64,6 +64,8 @@ void p_update_buffer_to_terminal(Buffer* buf) {
 
     int row_counter = 0;
     Bufrow* row = buffer_get_row(buf, 0);
+    
+    nmterm_clear_row(g_txmst->term, buf->num_rows+1);
     while(row) {
         if(row->dirty) {
             int real_row = buf->row_offset + row_counter;

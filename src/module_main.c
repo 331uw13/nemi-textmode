@@ -8,15 +8,23 @@
 
 
 
+static const int KEYBIND_TOGGLE[] = {
+    GLFW_KEY_E,
+    GLFW_KEY_LEFT_CONTROL
+};
+
+
 void module_event_render() {
     Nemi* nemi = nmt_getst();
     TXModest* txmst = get_txmst();
+    if(!txmst->enabled) {
+        return;
+    }
+
     Buffer* buffer = txmst->buffer;
     if(buffer == NULL) {
         return;
     }
-
-
 
 
     // Cursor
@@ -163,10 +171,45 @@ void module_event_char_input(char ch) {
 }
 
 
+void toggle_module() {
+    Nemi* nemi = nmt_getst();
+    TXModest* txmst = get_txmst();
+
+    if(txmst->enabled) {
+        txmst->enabled = false;
+        nmt_module_free_inputfocus(nemi, txmst->module_idx);
+        
+        nmt_switch_terminal_ptr(nemi, nemi->terminal_prev);
+    }
+    else {
+    
+        if(!nmt_module_gain_inputfocus(nemi, txmst->module_idx)) {
+            logprintf(LOG_ERROR, "(textmode.so) Failed to gain input focus.");
+            return;
+        }
+        txmst->enabled = true;
+
+        nmt_switch_terminal_ptr(nemi, txmst->term);
+        nmterm_clear(txmst->term);
+    }
+}
+
+
+
 void module_loaded(size_t module_idx) {
+    create_txmst();
+    TXModest* txmst = get_txmst();
+    txmst->enabled = false;
+    txmst->module_idx = module_idx;
+    
+    Nemi* nemi = nmt_getst();
+    nmt_assign_module_keybind(nemi, module_idx, toggle_module, KEYBIND_TOGGLE, ARRAY_LEN(KEYBIND_TOGGLE));
+    /*
     Nemi* nemi = nmt_getst();
 
     create_txmst();
+
+
     TXModest* txmst = get_txmst();
 
 
@@ -180,15 +223,11 @@ void module_loaded(size_t module_idx) {
     
     nmt_switch_terminal_ptr(nemi, txmst->term);
     nmterm_clear(txmst->term);
-
+    */
 
     //nmterm_mv_putchr(txmst->term, 5, 5, 'A');
 
-
-
-
 }
-
 
 
 void module_quit() {
