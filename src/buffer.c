@@ -151,6 +151,10 @@ void buffer_move_cursor_to(Buffer* buf, ssize_t row, ssize_t col) {
     if(bufrow == NULL) {
         return;
     }
+    
+    bool moved_up   = buf->cursor_row > row;
+    bool moved_down = buf->cursor_row < row;
+
 
     buf->cursor_row = row;
     buf->cursor_col = col;
@@ -172,6 +176,17 @@ void buffer_move_cursor_to(Buffer* buf, ssize_t row, ssize_t col) {
     }
 
 
+    if(moved_down) {
+        if(buf->cursor_row - buf->yscroll >= buffer_real_max_row(buf)) {
+            buffer_yscroll_to(buf, buf->cursor_row - buffer_real_max_row(buf) + 1);
+        }
+    }
+    else
+    if(moved_up) {
+        if(buf->cursor_row < buf->yscroll) {
+            buffer_yscroll_to(buf, buf->cursor_row);
+        }
+    }
     /*
     if(buf->cursor_row >= buffer_real_max_row(buf)) {
         buffer_yscroll(buf, 1);
@@ -228,7 +243,7 @@ bool buffer_insert_row(Buffer* buf, size_t position) {
     }
 
     buf->num_rows++;
-    validate_linked_list(buf);
+    //validate_linked_list(buf);
 
     buf->num_row_nodes++;
     return true;

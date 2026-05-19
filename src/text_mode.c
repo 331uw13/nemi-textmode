@@ -72,15 +72,16 @@ void p_update_buffer_to_terminal(Buffer* buf) {
     buf->col_offset = snprintf(linenum_buf, sizeof(linenum_buf)-1,
             "%li", buf->num_rows) + 1;
 
-
-    nmterm_clear_row(g_txmst->term, buf->num_rows+1);
+    nmterm_clear_row(g_txmst->term, buf->num_rows+1 - buf->yscroll);
     while(row) {
         if(row->dirty) {
             int real_row = buf->row_offset + row_counter;
             nmterm_clear_row(g_txmst->term, real_row);
 
+            ssize_t row_number = row_counter + buf->yscroll;
             ssize_t linenum_buf_len 
-                = snprintf(linenum_buf, sizeof(linenum_buf)-1, "\033[90m%li\033[0m", row_counter);
+                = snprintf(linenum_buf, sizeof(linenum_buf)-1, "\033[90m%li\033[0m", row_number);
+
             nmterm_mv_putstrn
             (
                 g_txmst->term,
@@ -99,7 +100,6 @@ void p_update_buffer_to_terminal(Buffer* buf) {
                     buf->col_offset + col,
                     row->data[col]
                 );
-
             }
         }
 
