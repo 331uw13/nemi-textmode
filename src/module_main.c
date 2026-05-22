@@ -13,7 +13,13 @@ static const int KEYBIND_TOGGLE[] = {
     GLFW_KEY_LEFT_CONTROL
 };
 
+static const int KEYBIND_BROWSE_FILES[] = {
+    GLFW_KEY_F,
+    GLFW_KEY_LEFT_CONTROL
+};
 
+#define BUFFER_CLOSE_STR "(x)"
+#define BUFFER_CLOSE_STR_LEN 3
 
 
 static
@@ -38,7 +44,7 @@ bool p_mouse_on_box(Nemi* nemi, Buffer* buf, int row, int col, int width_cols, i
 static
 void p_update_buffer_uiinteraction(Buffer* buf) {
     Nemi* nemi = nmt_getst();
-
+    TXModest* txmst = get_txmst();
 
     int mouse_col = floor(nemi->mouse_x / nemi->font.char_width);
     int mouse_row = floor(nemi->mouse_y / (nemi->font.char_height + nemi->cfg.main.line_padding));
@@ -46,7 +52,22 @@ void p_update_buffer_uiinteraction(Buffer* buf) {
     bool mouse_down = glfwGetMouseButton(nemi->lfctx->glfw_win, GLFW_MOUSE_BUTTON_LEFT);
 
     bool mouse_on_titlebar 
-        = p_mouse_on_box(nemi, buf, buf->position_row, buf->position_col, buf->max_col, 1);
+        = p_mouse_on_box(nemi, buf, 
+                buf->position_row,
+                buf->position_col,
+                buf->max_col, 1);
+
+    bool mouse_on_close
+        = p_mouse_on_box(nemi, buf, 
+                buf->position_row,
+                buf->position_col + buf->max_col - BUFFER_CLOSE_STR_LEN,
+                BUFFER_CLOSE_STR_LEN, 1);
+
+    if(mouse_on_close && nemi->last_mouse_button == GLFW_MOUSE_BUTTON_LEFT) {
+        delete_buffer(buf);
+        txmst->update_buffers = true;
+        return;
+    }
 
 
     // For how this will clear the buffer
@@ -54,9 +75,9 @@ void p_update_buffer_uiinteraction(Buffer* buf) {
     // Dont want to deal with keeping track of which column and row must be updated
     // while moving the buffer. TODO: ^ future improvement.
 
+    /*
     if(mouse_on_titlebar && mouse_down) {
         if(!(buf->flags & BUFFER_MOUSE_DRAG_MOVE)) {
-            // Drag was started so clear the rows.
             buffer_clean_visible_rows(buf);
         }
         buf->flags |= BUFFER_MOUSE_DRAG_MOVE;
@@ -67,31 +88,18 @@ void p_update_buffer_uiinteraction(Buffer* buf) {
         
         if(buf->flags & BUFFER_HIDE) {
             buf->flags &= ~BUFFER_HIDE;
-            update_text_to_terminal();
+            txmst->update_buffers = true;
         }
         buf->flags &= ~BUFFER_MOUSE_DRAG_MOVE;
-
     }
-
 
     if(buf->flags & BUFFER_MOUSE_DRAG_MOVE) {
         
         buf->position_col = mouse_col - buf->max_col / 2;   
         buf->position_row = mouse_row;
-   
 
-    }
-    
-
-    /*
-    if(p_mouse_on_box(nemi, buf, buf->position_row, buf->position_col, buf->max_col, buf->max_row)) {
-        printf("True\n");
-    }
-    else {
-        printf("False\n");
     }
     */
-
 }
 
 void module_event_render() {
@@ -149,8 +157,6 @@ void module_event_render() {
             }
         );
 
-
-
         // Border.
         {
             struct color_t border_color = (struct color_t){ 20, 80, 50 };
@@ -198,6 +204,7 @@ void module_event_render() {
         }
 
 
+        // Buffer close "button"
         if(buffer->flags & BUFFER_INTERACTABLE) {
             nemi->font.char_color_r = 0.4f;
             nemi->font.char_color_g = 0.4f;
@@ -206,13 +213,16 @@ void module_event_render() {
             leaf_draw_text
             (
                 &nemi->font,
-                nmt_coltox(nemi, buffer->position_col + buffer->max_col - 3),
+                nmt_coltox(nemi, buffer->position_col + buffer->max_col - BUFFER_CLOSE_STR_LEN),
                 nmt_rowtoy(nemi, buffer->position_row),
-                "(x)", 3
+                BUFFER_CLOSE_STR,
+                BUFFER_CLOSE_STR_LEN
             );
         }
 
 
+
+        // Title.
 
         char title_str[32] = { 0 };
         const char* buffer_title = buffer->title == NULL ? "" : buffer->title;
@@ -247,6 +257,11 @@ void module_event_render() {
             title_str, strlen(title_str)
         );
     }
+    
+    
+    if(txmst->update_buffers) {
+        update_buffers();
+    }
 }
 
 
@@ -278,7 +293,8 @@ void module_event_key_input(int key, int mods) {
         // ...
     }
     
-    update_text_to_terminal();
+    txmst->update_buffers = true;
+    //update_text_to_terminal();
 }
 
 void module_event_char_input(char ch) {
@@ -317,7 +333,7 @@ void module_event_char_input(char ch) {
     txmst->buffer->cursor_col++;
     */
 
-    update_text_to_terminal();
+    txmst->update_buffers = true;
 }
 
 
@@ -363,6 +379,18 @@ void toggle_module() {
 }
 
 
+void open_file_browsing() {
+    TXModest* txmst = get_txmst();
+    if(!txmst->enabled) {
+        return;
+    }
+
+
+    add_new_buffer("Files", 
+            (GridRect){ .row = 5, .col = 5, .max_row = 10, .max_col = 20 }, 
+            BUFFER_INTERACTABLE);
+}
+
 
 void module_loaded(size_t module_idx) {
     create_txmst();
@@ -371,35 +399,28 @@ void module_loaded(size_t module_idx) {
     txmst->module_idx = module_idx;
     
     Nemi* nemi = nmt_getst();
-    nmt_assign_module_keybind(nemi, module_idx, toggle_module, KEYBIND_TOGGLE, ARRAY_LEN(KEYBIND_TOGGLE));
-    /*
-    Nemi* nemi = nmt_getst();
-
-    create_txmst();
-
-
-    TXModest* txmst = get_txmst();
-
-
-    txmst->module_idx = module_idx;
-    txmst->enabled = true;
-
-    if(!nmt_module_gain_inputfocus(nemi, module_idx)) {
-        logprintf(LOG_ERROR, "TextMode failed to gain input focus.");
-        return;
-    }
     
-    nmt_switch_terminal_ptr(nemi, txmst->term);
-    nmterm_clear(txmst->term);
-    */
-
-    //nmterm_mv_putchr(txmst->term, 5, 5, 'A');
-
+    nmt_assign_module_keybind
+    (
+        nemi, 
+        module_idx,
+        toggle_module,
+        KEYBIND_TOGGLE, 
+        ARRAY_LEN(KEYBIND_TOGGLE)
+    );
+   
+    nmt_assign_module_keybind
+    (
+        nemi,
+        module_idx, 
+        open_file_browsing, 
+        KEYBIND_BROWSE_FILES,
+        ARRAY_LEN(KEYBIND_BROWSE_FILES)
+    );
 }
 
 
 void module_quit() {
     free_txmst();
 }
-
 

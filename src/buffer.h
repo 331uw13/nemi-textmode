@@ -14,6 +14,7 @@
 #define BUFFER_HIDE            (1 << 4)
 
 typedef struct Buffer_t {
+    size_t index;
     uint64_t flags;
     char*   title;
     Bufrow* rows_head;
@@ -65,6 +66,7 @@ void buffer_yscroll_to  (Buffer* buf, ssize_t position);
 void buffer_yscroll     (Buffer* buf, int offset);
 
 void buffer_clean_visible_rows(Buffer* buf);
+void buffer_write_to_terminal(Buffer* buf);
 
 /*
 void buffer_insert_char (Buffer* buf, ssize_t row, ssize_t column, char c);

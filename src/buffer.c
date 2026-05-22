@@ -376,3 +376,80 @@ void buffer_clean_visible_rows(Buffer* buf) {
 }
 
 
+void buffer_write_to_terminal(Buffer* buf) {
+    if(buf->flags & BUFFER_HIDE) {
+        return;
+    }
+
+    NTerminal* term = get_txmst()->term;
+
+    ssize_t row_counter = 0;
+    Bufrow* row = buffer_get_row(buf, buf->yscroll);
+   
+
+
+    char linenum_buf[32] = { 0 };
+
+    if(!(buf->flags & BUFFER_NONUMBER)) {
+        buf->col_offset = snprintf(linenum_buf, sizeof(linenum_buf)-1,
+                "%li", buf->num_rows) + 1;
+    }
+
+    //nmterm_clear_row_part(g_txmst->term, );
+    //nmterm_clear_row(g_txmst->term, buf->position_col + buf->num_rows+1 - buf->yscroll);
+    nmterm_clear_row_part(term, 
+            buf->position_row + buf->num_rows+1 - buf->yscroll,
+            buf->position_col, buf->position_col + buf->max_col);
+
+
+    while(row) {
+
+        /*
+        if(buf->flags & BUFFER_CLEAN_VISIBLE_ROWS) {
+            row->dirty = true;
+        }
+        */
+
+        if(row->dirty) {
+            int real_row = buf->position_row + buf->row_offset + row_counter;
+            
+            nmterm_clear_row_part(term, real_row, buf->position_col, buf->position_col + buf->max_col);
+
+
+            if(!(buf->flags & BUFFER_NONUMBER)) {
+                ssize_t row_number = row_counter + buf->yscroll;
+                ssize_t linenum_buf_len 
+                    = snprintf(linenum_buf, sizeof(linenum_buf)-1, "\033[90m%li\033[0m", row_number);
+
+                nmterm_mv_putstrn
+                (
+                    term,
+                    real_row,
+                    buf->position_col,
+                    linenum_buf,
+                    linenum_buf_len
+                );
+            }
+
+            for(size_t col = 0; col < row->len; col++) {
+
+                nmterm_mv_putchr
+                (
+                    term,
+                    real_row,
+                    buf->position_col + buf->col_offset + col,
+                    row->data[col]
+                );
+            }
+        }
+
+        row = row->next;
+        row_counter++;
+
+        if(row_counter >= buffer_screen_max_row(buf)) {
+            break;
+        }
+    }
+        
+    //buf->flags &= ~BUFFER_CLEAN_VISIBLE_ROWS;
+}
