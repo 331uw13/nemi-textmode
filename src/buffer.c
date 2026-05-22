@@ -92,13 +92,13 @@ void validate_linked_list(Buffer* buf) {
 
 
 
-Buffer* buffer_allocate() {
+Buffer* buffer_allocate(int max_row, int max_col) {
     Buffer* buf = malloc(sizeof *buf);
     buf->rows = malloc(sizeof *buf->rows);
     bufrow_allocate(&buf->rows[0]);
     buf->rows_head = &buf->rows[0];
     buf->rows_tail = &buf->rows[0];
-
+    buf->flags = 0;
     //buf->num_row_nodes = 0;
     //buf->num_row_nodes_alloc = 0;
     buf->num_rows = 1;
@@ -110,8 +110,10 @@ Buffer* buffer_allocate() {
     buf->input_mode = IMODE_INSERT;
    
     TXModest* txmst = get_txmst();
-    buf->max_row = txmst->term->rows;
-    buf->max_col = txmst->term->cols;
+    buf->is_full_max_row = max_row == BUFFER_FULL_MAX_ROW;
+    buf->is_full_max_col = max_col == BUFFER_FULL_MAX_COL;
+    buf->max_row = buf->is_full_max_row ? txmst->term->rows : max_row;
+    buf->max_col = buf->is_full_max_col ? txmst->term->cols : max_col;
 
     //buffer_insert_row(buf, 0);
 
@@ -138,11 +140,11 @@ void buffer_free(Buffer* buf) {
     free(buf);
 }
 
-int buffer_real_max_row(Buffer* buf) {
+int buffer_screen_max_row(Buffer* buf) {
     return buf->max_row - buf->row_offset;
 }
 
-int buffer_real_max_col(Buffer* buf) {
+int buffer_screen_max_col(Buffer* buf) {
     return buf->max_col - buf->col_offset;
 }
 
@@ -177,8 +179,8 @@ void buffer_move_cursor_to(Buffer* buf, ssize_t row, ssize_t col) {
 
 
     if(moved_down) {
-        if(buf->cursor_row - buf->yscroll >= buffer_real_max_row(buf)) {
-            buffer_yscroll_to(buf, buf->cursor_row - buffer_real_max_row(buf) + 1);
+        if(buf->cursor_row - buf->yscroll >= buffer_screen_max_row(buf)) {
+            buffer_yscroll_to(buf, buf->cursor_row - buffer_screen_max_row(buf) + 1);
         }
     }
     else
@@ -353,4 +355,24 @@ void buffer_eventkey_backspace(Buffer* buf, Bufrow* row) {
         buffer_move_cursor_to(buf, buf->cursor_row-1, above_row_old_len);
     }
 }
+
+void buffer_clean_visible_rows(Buffer* buf) {
+    ssize_t row_counter = 0;
+    Bufrow* row = buffer_get_row(buf, buf->yscroll);
+    
+    while(row) {
+        int real_row = buf->position_row + buf->row_offset + row_counter;
+        nmterm_clear_row_part(get_txmst()->term, real_row, buf->position_col, buf->position_col + buf->max_col);
+        
+
+        row->dirty = true; // Set to dirty for next update so the row wont stay hidden.
+        row = row->next;
+
+        row_counter++;
+        if(row_counter >= buffer_screen_max_row(buf)) {
+            break;
+        }
+    }
+}
+
 

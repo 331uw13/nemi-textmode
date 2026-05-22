@@ -23,7 +23,12 @@ void create_txmst() {
         );
 
     memset(g_txmst->buffers, 0, sizeof *g_txmst->buffers * MAX_BUFFERS);
-    add_new_buffer();
+
+
+    add_new_buffer("test", 0, 0, BUFFER_FULL_MAX_ROW, BUFFER_FULL_MAX_COL, BUFFER_INTERACTABLE);
+    
+
+    Buffer* files_buf = add_new_buffer("another buffer", 5, 5, 10, 30, BUFFER_INTERACTABLE);
 
     g_txmst->buffer = g_txmst->buffers[0];
 }
@@ -44,14 +49,20 @@ TXModest* get_txmst() {
     return g_txmst;
 }
 
-Buffer* add_new_buffer() {
+
+
+Buffer* add_new_buffer(char* title, int row, int col, int max_row, int max_col, uint64_t flags) {
     Buffer* buf = NULL;
 
     // Search space for new buffer to add.
     for(size_t i = 0; i < MAX_BUFFERS; i++) {
         if(g_txmst->buffers[i] == NULL) {
-            g_txmst->buffers[i] = buffer_allocate();
+            g_txmst->buffers[i] = buffer_allocate(max_row, max_col);
             buf = g_txmst->buffers[i];
+            buf->position_row = row;
+            buf->position_col = col;
+            buf->title = strdup(title);
+            buf->flags = flags;
             break;
         }
     }
@@ -59,8 +70,13 @@ Buffer* add_new_buffer() {
     return buf;
 }
 
+
+
 static
-void p_update_buffer_to_terminal(Buffer* buf) {
+void p_update_buffer(Buffer* buf) {
+    if(buf->flags & BUFFER_HIDE) {
+        return;
+    }
 
     ssize_t row_counter = 0;
     Bufrow* row = buffer_get_row(buf, buf->yscroll);
@@ -69,27 +85,46 @@ void p_update_buffer_to_terminal(Buffer* buf) {
 
     char linenum_buf[32] = { 0 };
 
-    buf->col_offset = snprintf(linenum_buf, sizeof(linenum_buf)-1,
-            "%li", buf->num_rows) + 1;
+    if(!(buf->flags & BUFFER_NONUMBER)) {
+        buf->col_offset = snprintf(linenum_buf, sizeof(linenum_buf)-1,
+                "%li", buf->num_rows) + 1;
+    }
 
-    nmterm_clear_row(g_txmst->term, buf->num_rows+1 - buf->yscroll);
+    //nmterm_clear_row_part(g_txmst->term, );
+    //nmterm_clear_row(g_txmst->term, buf->position_col + buf->num_rows+1 - buf->yscroll);
+    nmterm_clear_row_part(g_txmst->term, 
+            buf->position_row + buf->num_rows+1 - buf->yscroll,
+            buf->position_col, buf->position_col + buf->max_col);
+
+
     while(row) {
+
+        /*
+        if(buf->flags & BUFFER_CLEAN_VISIBLE_ROWS) {
+            row->dirty = true;
+        }
+        */
+
         if(row->dirty) {
-            int real_row = buf->row_offset + row_counter;
-            nmterm_clear_row(g_txmst->term, real_row);
+            int real_row = buf->position_row + buf->row_offset + row_counter;
+            
+            nmterm_clear_row_part(g_txmst->term, real_row, buf->position_col, buf->position_col + buf->max_col);
 
-            ssize_t row_number = row_counter + buf->yscroll;
-            ssize_t linenum_buf_len 
-                = snprintf(linenum_buf, sizeof(linenum_buf)-1, "\033[90m%li\033[0m", row_number);
 
-            nmterm_mv_putstrn
-            (
-                g_txmst->term,
-                real_row,
-                0,
-                linenum_buf,
-                linenum_buf_len
-            );
+            if(!(buf->flags & BUFFER_NONUMBER)) {
+                ssize_t row_number = row_counter + buf->yscroll;
+                ssize_t linenum_buf_len 
+                    = snprintf(linenum_buf, sizeof(linenum_buf)-1, "\033[90m%li\033[0m", row_number);
+
+                nmterm_mv_putstrn
+                (
+                    g_txmst->term,
+                    real_row,
+                    buf->position_col,
+                    linenum_buf,
+                    linenum_buf_len
+                );
+            }
 
             for(size_t col = 0; col < row->len; col++) {
 
@@ -97,7 +132,7 @@ void p_update_buffer_to_terminal(Buffer* buf) {
                 (
                     g_txmst->term,
                     real_row,
-                    buf->col_offset + col,
+                    buf->position_col + buf->col_offset + col,
                     row->data[col]
                 );
             }
@@ -106,14 +141,23 @@ void p_update_buffer_to_terminal(Buffer* buf) {
         row = row->next;
         row_counter++;
 
-        if(row_counter >= buffer_real_max_row(buf)) {
+        if(row_counter >= buffer_screen_max_row(buf)) {
             break;
         }
     }
+        
+    //buf->flags &= ~BUFFER_CLEAN_VISIBLE_ROWS;
 }
 
 void update_text_to_terminal() {
-    // This will be changed later to support multiple buffers.
-    p_update_buffer_to_terminal(g_txmst->buffer);
+    
+    for(size_t i = 0; i < MAX_BUFFERS; i++) {
+        Buffer* buf = g_txmst->buffers[i];
+        if(buf == NULL) {
+            continue;
+        }
+
+        p_update_buffer(buf);
+    }
 }
 

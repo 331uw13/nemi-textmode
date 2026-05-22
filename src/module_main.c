@@ -5,7 +5,7 @@
 #include "text_mode.h"
 
 #include <stdio.h>
-
+#include <math.h>
 
 
 static const int KEYBIND_TOGGLE[] = {
@@ -14,6 +14,86 @@ static const int KEYBIND_TOGGLE[] = {
 };
 
 
+
+
+static
+bool p_mouse_on_box(Nemi* nemi, Buffer* buf, int row, int col, int width_cols, int height_rows) {
+    
+    int box_begin_x = nmt_coltox(nemi, col);
+    int box_begin_y = nmt_rowtoy(nemi, row);
+
+    int box_end_x = nmt_coltox(nemi, col + width_cols);
+    int box_end_y = nmt_rowtoy(nemi, row + height_rows);
+
+
+    if(nemi->mouse_x >= box_begin_x && nemi->mouse_x < box_end_x
+    && nemi->mouse_y >= box_begin_y && nemi->mouse_y < box_end_y) {
+        return true;
+    }
+
+    return false;
+}
+
+
+static
+void p_update_buffer_uiinteraction(Buffer* buf) {
+    Nemi* nemi = nmt_getst();
+
+
+    int mouse_col = floor(nemi->mouse_x / nemi->font.char_width);
+    int mouse_row = floor(nemi->mouse_y / (nemi->font.char_height + nemi->cfg.main.line_padding));
+    
+    bool mouse_down = glfwGetMouseButton(nemi->lfctx->glfw_win, GLFW_MOUSE_BUTTON_LEFT);
+
+    bool mouse_on_titlebar 
+        = p_mouse_on_box(nemi, buf, buf->position_row, buf->position_col, buf->max_col, 1);
+
+
+    // For how this will clear the buffer
+    // data and keep it from updating it again.
+    // Dont want to deal with keeping track of which column and row must be updated
+    // while moving the buffer. TODO: ^ future improvement.
+
+    if(mouse_on_titlebar && mouse_down) {
+        if(!(buf->flags & BUFFER_MOUSE_DRAG_MOVE)) {
+            // Drag was started so clear the rows.
+            buffer_clean_visible_rows(buf);
+        }
+        buf->flags |= BUFFER_MOUSE_DRAG_MOVE;
+        buf->flags |= BUFFER_HIDE;
+    }
+    else
+    if(!mouse_down) {
+        
+        if(buf->flags & BUFFER_HIDE) {
+            buf->flags &= ~BUFFER_HIDE;
+            update_text_to_terminal();
+        }
+        buf->flags &= ~BUFFER_MOUSE_DRAG_MOVE;
+
+    }
+
+
+    if(buf->flags & BUFFER_MOUSE_DRAG_MOVE) {
+        
+        buf->position_col = mouse_col - buf->max_col / 2;   
+        buf->position_row = mouse_row;
+   
+
+    }
+    
+
+    /*
+    if(p_mouse_on_box(nemi, buf, buf->position_row, buf->position_col, buf->max_col, buf->max_row)) {
+        printf("True\n");
+    }
+    else {
+        printf("False\n");
+    }
+    */
+
+}
+
 void module_event_render() {
     Nemi* nemi = nmt_getst();
     TXModest* txmst = get_txmst();
@@ -21,84 +101,152 @@ void module_event_render() {
         return;
     }
 
-    Buffer* buffer = txmst->buffer;
-    if(buffer == NULL) {
-        return;
-    }
 
 
-    // Cursor
 
-    int cursor_x = nmt_coltox(nemi, 
-            buffer->cursor_col + buffer->col_offset);
-
-    int cursor_y = nmt_rowtoy(nemi, 
-            buffer->cursor_row + buffer->row_offset - buffer->yscroll);
-
-    leaf_draw_rect
-    (
-        cursor_x,
-        cursor_y,
-        nemi->font.char_width,
-        nemi->font.char_height,
-        (struct color_t) {
-            10, 60, 60
+    for(size_t i = 0; i < MAX_BUFFERS; i++) {
+        Buffer* buffer = txmst->buffers[i];
+        if(buffer == NULL) {
+            continue;
         }
-    );
 
-
-    // Buffer title.
-
-    leaf_draw_rect
-    (
-        0,
-        0,
-        nemi->lfctx->win_width,
-        nemi->font.char_height + 2,
-        (struct color_t) {
-            20, 20, 20
+        if(buffer->flags & BUFFER_INTERACTABLE) {
+            p_update_buffer_uiinteraction(buffer);
         }
-    );
 
-    char title_str[32] = { 0 };
+ 
+        if(!(buffer->flags & BUFFER_HIDE)) {
 
-    nemi->font.char_color_r = 0.3f;
-    nemi->font.char_color_g = 0.3f;
-    nemi->font.char_color_b = 0.3f;
+            // Cursor
+            int cursor_x = nmt_coltox(nemi, 
+                    buffer->position_col + buffer->cursor_col + buffer->col_offset);
+
+            int cursor_y = nmt_rowtoy(nemi, 
+                    buffer->position_row + buffer->cursor_row + buffer->row_offset - buffer->yscroll);
+
+            leaf_draw_rect
+            (
+                cursor_x,
+                cursor_y,
+                nemi->font.char_width,
+                nemi->font.char_height,
+                (struct color_t) {
+                    10, 60, 60
+                }
+            );
+        }
 
 
-    switch(buffer->input_mode) {
-        case IMODE_INSERT:
-            snprintf(title_str, sizeof(title_str)-1,
-                    "mode:insert / rows:%li / sc:%li",
-                    buffer->num_rows,
-                    buffer->yscroll);
-            nemi->font.char_color_r = 0.7f;
-            nemi->font.char_color_g = 0.36f;
-            nemi->font.char_color_b = 0.3f;
-            break;
+        // Buffer title.
+        leaf_draw_rect
+        (
+            nmt_coltox(nemi, buffer->position_col),
+            nmt_rowtoy(nemi, buffer->position_row),
+            buffer->max_col * nemi->font.char_width,
+            nemi->font.char_height + 2,
+            (struct color_t) {
+                20, 20, 20
+            }
+        );
 
-        case IMODE_VIEW:
-            snprintf(title_str, sizeof(title_str)-1,
-                    "mode:view");
+
+
+        // Border.
+        {
+            struct color_t border_color = (struct color_t){ 20, 80, 50 };
+            struct color_t border_color_dim = (struct color_t){ 10, 30, 25 };
+            
+            // Top.
+            leaf_draw_rect
+            (
+                nmt_coltox(nemi, buffer->position_col) - 2,
+                nmt_rowtoy(nemi, buffer->position_row) - 2,
+                buffer->max_col * nemi->font.char_width + 2,
+                1,
+                border_color
+            );
+
+            // Bottom.
+            leaf_draw_rect
+            (
+                nmt_coltox(nemi, buffer->position_col) - 2,
+                nmt_rowtoy(nemi, buffer->position_row + buffer_screen_max_row(buffer)+1) + 8,
+                buffer->max_col * nemi->font.char_width + 2,
+                1,
+                border_color_dim
+            );
+
+            // Left.
+            leaf_draw_rect
+            (
+                nmt_coltox(nemi, buffer->position_col) - 2,
+                nmt_rowtoy(nemi, buffer->position_row) - 2,
+                1,
+                nmt_rowtoy(nemi, buffer_screen_max_row(buffer)+1),
+                border_color
+            );
+
+            // Right.
+            leaf_draw_rect
+            (
+                nmt_coltox(nemi, buffer->position_col + buffer->max_col),
+                nmt_rowtoy(nemi, buffer->position_row) - 2,
+                1,
+                nmt_rowtoy(nemi, buffer_screen_max_row(buffer)+1),
+                border_color_dim
+            );
+        }
+
+
+        if(buffer->flags & BUFFER_INTERACTABLE) {
             nemi->font.char_color_r = 0.4f;
-            nemi->font.char_color_g = 0.7f;
-            nemi->font.char_color_b = 0.6f;
-            break;
+            nemi->font.char_color_g = 0.4f;
+            nemi->font.char_color_b = 0.4f;
 
-        default:
-            snprintf(title_str, sizeof(title_str)-1,
-                    "mode:unknown");
-            break;
+            leaf_draw_text
+            (
+                &nemi->font,
+                nmt_coltox(nemi, buffer->position_col + buffer->max_col - 3),
+                nmt_rowtoy(nemi, buffer->position_row),
+                "(x)", 3
+            );
+        }
+
+
+
+        char title_str[32] = { 0 };
+        const char* buffer_title = buffer->title == NULL ? "" : buffer->title;
+        nemi->font.char_color_r = 0.3f;
+        nemi->font.char_color_g = 0.7f;
+        nemi->font.char_color_b = 0.4f;
+
+        switch(buffer->input_mode) {
+        
+            case IMODE_INSERT:
+                snprintf(title_str, sizeof(title_str)-1,
+                        "%s%s", 
+                        buffer_title,
+                        (buffer->flags & BUFFER_NOMODE_INTITLE) ? "" : " [insert]");
+                break;
+
+            case IMODE_VIEW:
+                snprintf(title_str, sizeof(title_str)-1,
+                        "%s%s", 
+                        buffer_title,
+                        (buffer->flags & BUFFER_NOMODE_INTITLE) ? "" : " [view]");
+                break;
+
+                // ...
+        }
+
+        leaf_draw_text
+        (
+            &nemi->font,
+            nmt_coltox(nemi, buffer->position_col),
+            nmt_rowtoy(nemi, buffer->position_row),
+            title_str, strlen(title_str)
+        );
     }
-
-    leaf_draw_text
-    (
-        &nemi->font,
-        5,
-        0,
-        title_str, strlen(title_str)
-    );
 }
 
 
@@ -180,9 +328,14 @@ void module_event_window_resized() {
         if(buffer == NULL) {
             continue;
         }
-    
-        buffer->max_row = txmst->term->rows;
-        buffer->max_col = txmst->term->cols;
+
+        if(buffer->is_full_max_row) {
+            buffer->max_row = txmst->term->rows;
+        }
+        
+        if(buffer->is_full_max_col) {
+            buffer->max_col = txmst->term->cols;
+        }
     }
 }
 

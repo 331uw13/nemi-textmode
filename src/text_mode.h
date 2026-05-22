@@ -16,6 +16,7 @@ typedef struct TXModest_t {
     Buffer* buffer; // Current active buffer.
 
     bool enabled;
+
 }
 TXModest;
 
@@ -24,8 +25,10 @@ void      create_txmst();
 void      free_txmst();
 TXModest* get_txmst();
 
-Buffer*   add_new_buffer();
+Buffer*   add_new_buffer(char* title, int row, int col, int max_row, int max_col, uint64_t flags);
 void      update_text_to_terminal();
+
+
 
 
 

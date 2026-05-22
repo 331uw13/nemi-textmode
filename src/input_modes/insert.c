@@ -17,7 +17,6 @@ void handle_input_mode_insert_keypress(int key, int mods) {
 
     switch(key) {
 
-
         case GLFW_KEY_I:
             if(mods & GLFW_MOD_CONTROL) {
                 buffer_move_cursor(buffer, -1, 0);
