@@ -29,6 +29,7 @@ void bufrow_free       (Bufrow* row);
 void bufrow_insert_char   (Bufrow* row, ssize_t position, char c);
 void bufrow_delete_char   (Bufrow* row, ssize_t position);
 void bufrow_cut           (Bufrow* row, ssize_t position, size_t len);
+void bufrow_set           (Bufrow* row, char* data, size_t len);
 BufrowSubstr bufrow_substr        (Bufrow* row, ssize_t position, size_t len);
 BufrowSubstr bufrow_substr_p      (Bufrow* row, ssize_t begin, ssize_t end);
 void         bufrow_insert_substr (Bufrow* row, ssize_t position, BufrowSubstr substr);

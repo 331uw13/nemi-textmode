@@ -1,4 +1,4 @@
-#include "input_modes.h"
+#include "../input_modes.h"
 #include "../text_mode.h"
 
 #include "nemi.h"
@@ -6,11 +6,16 @@
 #include <stdio.h>
 
 
-void handle_input_mode_insert_keypress(int key, int mods) {
+void imode_INSERT_keypress(Buffer* buf, int key, int mods) {
     TXModest* txmst = get_txmst();
     Buffer* buffer = txmst->buffer;
     
-    Bufrow* row = buffer_get_row(buffer, buffer->cursor_row);
+
+    if(buf->flags & BUFFER_READONLY_FOR_USER) {
+        return;
+    }
+
+    Bufrow* row = buffer_get_row(buffer, buf->cursor_row);
     if(row == NULL) {
         return;
     }
@@ -51,16 +56,18 @@ void handle_input_mode_insert_keypress(int key, int mods) {
 }
 
 
-void handle_input_mode_insert_charpress(char c) {
+void imode_INSERT_chrpress(Buffer* buf, char c) {
     TXModest* txmst = get_txmst();
-    Buffer* buffer = txmst->buffer;
 
-    Bufrow* row = buffer_get_row(buffer, buffer->cursor_row);
+    if(buf->flags & BUFFER_READONLY_FOR_USER) {
+        return;
+    }
+    Bufrow* row = buffer_get_row(buf, buf->cursor_row);
     if(row == NULL) {
         return;
     }
 
-    bufrow_insert_char(row, buffer->cursor_col, c);
-    buffer->cursor_col++;
+    bufrow_insert_char(row, buf->cursor_col, c);
+    buf->cursor_col++;
 }
 

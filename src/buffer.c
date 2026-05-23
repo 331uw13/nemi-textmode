@@ -32,7 +32,7 @@ void print_buffer_linked_list(Buffer* buf) {
 }
 
 */
-
+/*
 static // Temporary function.
 void validate_linked_list(Buffer* buf) {
     bool error = false;
@@ -89,10 +89,10 @@ void validate_linked_list(Buffer* buf) {
     }
     printf("\n");
 }
+*/
 
 
-
-Buffer* buffer_allocate(int max_row, int max_col) {
+Buffer* buffer_init() {
     Buffer* buf = malloc(sizeof *buf);
     buf->rows = malloc(sizeof *buf->rows);
     bufrow_allocate(&buf->rows[0]);
@@ -110,13 +110,11 @@ Buffer* buffer_allocate(int max_row, int max_col) {
     buf->input_mode = IMODE_INSERT;
    
     TXModest* txmst = get_txmst();
-    buf->is_full_max_row = max_row == BUFFER_FULL_MAX_ROW;
-    buf->is_full_max_col = max_col == BUFFER_FULL_MAX_COL;
-    buf->max_row = buf->is_full_max_row ? txmst->term->rows : max_row;
-    buf->max_col = buf->is_full_max_col ? txmst->term->cols : max_col;
+    buf->max_row = txmst->term->rows;
+    buf->max_col = txmst->term->cols;
+
 
     //buffer_insert_row(buf, 0);
-
 
     //print_buffer_linked_list(buf);
     //validate_linked_list(buf);
@@ -136,6 +134,9 @@ void buffer_free(Buffer* buf) {
         row = prev;
     }
 
+    if(buf->name) {
+        free(buf->name);
+    }
     free(buf->rows);
     free(buf);
 }
@@ -165,7 +166,7 @@ void buffer_move_cursor_to(Buffer* buf, ssize_t row, ssize_t col) {
         buf->cursor_row = 0;
     }
     else
-    if(buf->cursor_row >= buf->num_rows) {
+    if(buf->cursor_row >= (ssize_t)buf->num_rows) {
         buf->cursor_row = buf->num_rows-1;
     }
     
@@ -173,7 +174,7 @@ void buffer_move_cursor_to(Buffer* buf, ssize_t row, ssize_t col) {
         buf->cursor_col = 0;
     }
     else
-    if(buf->cursor_col > bufrow->len) {
+    if(buf->cursor_col > (ssize_t)bufrow->len) {
         buf->cursor_col = bufrow->len;
     }
 
@@ -220,10 +221,10 @@ void buffer_yscroll(Buffer* buf, int offset) {
     buffer_yscroll_to(buf, buf->yscroll + offset);
 }
 
-bool buffer_insert_row(Buffer* buf, size_t position) {
+Bufrow* buffer_insert_row(Buffer* buf, size_t position) {
     Bufrow* row = buffer_get_row(buf, position);
     if(row == NULL) {
-        return false;
+        return NULL;
     }
 
     Bufrow* new_row = malloc(sizeof(Bufrow));
@@ -248,7 +249,7 @@ bool buffer_insert_row(Buffer* buf, size_t position) {
     //validate_linked_list(buf);
 
     buf->num_row_nodes++;
-    return true;
+    return new_row;
 }
 
 bool buffer_delete_row(Buffer* buf, size_t position) {
@@ -299,8 +300,9 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
     return true;
 }
 
+
 Bufrow* buffer_get_row(Buffer* buf, ssize_t position) {
-    if(position < 0 || position > buf->num_rows + 1) {
+    if(position < 0 || position > (ssize_t)buf->num_rows + 1) {
         return NULL;
     }
     Bufrow* row = buf->rows_head;
@@ -323,7 +325,7 @@ void buffer_eventkey_enter(Buffer* buf, Bufrow* row) {
     // This is the new inserted row.
     Bufrow* row_below = row->next; 
 
-    if(buf->cursor_col < row->len) {
+    if(buf->cursor_col < (ssize_t)row->len) {
         BufrowSubstr substr = bufrow_substr_p(row, buf->cursor_col, row->len);
     
         bufrow_insert_substr(row_below, 0, substr);
@@ -361,8 +363,8 @@ void buffer_clean_visible_rows(Buffer* buf) {
     Bufrow* row = buffer_get_row(buf, buf->yscroll);
     
     while(row) {
-        int real_row = buf->position_row + buf->row_offset + row_counter;
-        nmterm_clear_row_part(get_txmst()->term, real_row, buf->position_col, buf->position_col + buf->max_col);
+        int real_row = buf->row_offset + row_counter;
+        nmterm_clear_row_part(get_txmst()->term, real_row, 0, buf->max_col);
         
 
         row->dirty = true; // Set to dirty for next update so the row wont stay hidden.
@@ -377,10 +379,6 @@ void buffer_clean_visible_rows(Buffer* buf) {
 
 
 void buffer_write_to_terminal(Buffer* buf) {
-    if(buf->flags & BUFFER_HIDE) {
-        return;
-    }
-
     NTerminal* term = get_txmst()->term;
 
     ssize_t row_counter = 0;
@@ -390,7 +388,7 @@ void buffer_write_to_terminal(Buffer* buf) {
 
     char linenum_buf[32] = { 0 };
 
-    if(!(buf->flags & BUFFER_NONUMBER)) {
+    if(!(buf->flags & BUFFER_NO_NUMBER)) {
         buf->col_offset = snprintf(linenum_buf, sizeof(linenum_buf)-1,
                 "%li", buf->num_rows) + 1;
     }
@@ -398,8 +396,7 @@ void buffer_write_to_terminal(Buffer* buf) {
     //nmterm_clear_row_part(g_txmst->term, );
     //nmterm_clear_row(g_txmst->term, buf->position_col + buf->num_rows+1 - buf->yscroll);
     nmterm_clear_row_part(term, 
-            buf->position_row + buf->num_rows+1 - buf->yscroll,
-            buf->position_col, buf->position_col + buf->max_col);
+            buf->num_rows+1 - buf->yscroll, 0, buf->max_col);
 
 
     while(row) {
@@ -411,12 +408,12 @@ void buffer_write_to_terminal(Buffer* buf) {
         */
 
         if(row->dirty) {
-            int real_row = buf->position_row + buf->row_offset + row_counter;
+            int real_row = buf->row_offset + row_counter;
             
-            nmterm_clear_row_part(term, real_row, buf->position_col, buf->position_col + buf->max_col);
+            nmterm_clear_row_part(term, real_row, 0, buf->max_col);
 
 
-            if(!(buf->flags & BUFFER_NONUMBER)) {
+            if(!(buf->flags & BUFFER_NO_NUMBER)) {
                 ssize_t row_number = row_counter + buf->yscroll;
                 ssize_t linenum_buf_len 
                     = snprintf(linenum_buf, sizeof(linenum_buf)-1, "\033[90m%li\033[0m", row_number);
@@ -425,7 +422,7 @@ void buffer_write_to_terminal(Buffer* buf) {
                 (
                     term,
                     real_row,
-                    buf->position_col,
+                    0,
                     linenum_buf,
                     linenum_buf_len
                 );
@@ -437,7 +434,7 @@ void buffer_write_to_terminal(Buffer* buf) {
                 (
                     term,
                     real_row,
-                    buf->position_col + buf->col_offset + col,
+                    buf->col_offset + col,
                     row->data[col]
                 );
             }

@@ -26,13 +26,8 @@ void create_txmst() {
 
 
     g_txmst->files_buffer_idx = -1;
-
     
-    add_new_buffer("test",
-            (GridRect){ .col = 0, .row = 0, .max_row = BUFFER_FULL_MAX_ROW, .max_col = BUFFER_FULL_MAX_COL },
-            BUFFER_NO_FLAGS);
-
-    g_txmst->buffer = g_txmst->buffers[0];
+    add_new_buffer("test", IMODE_INSERT, BUFFER_NO_FLAGS);
 }
 
 
@@ -53,21 +48,29 @@ TXModest* get_txmst() {
 
 
 
-Buffer* add_new_buffer(char* title, GridRect rect, uint64_t flags) {
+Buffer* add_new_buffer(char* name, InputMode initial_imode, uint64_t flags) {
     Buffer* buf = NULL;
 
     // Search space for new buffer to add.
     for(size_t i = 0; i < MAX_BUFFERS; i++) {
         if(g_txmst->buffers[i] == NULL) {
-            g_txmst->buffers[i] = buffer_allocate(rect.max_row, rect.max_col);
-            buf = g_txmst->buffers[i];
+            buf = g_txmst->buffers[i] = buffer_init();
             buf->index = i;
-            buf->position_row = rect.row;
-            buf->position_col = rect.col;
-            buf->title = strdup(title);
-            buf->flags = flags;
             break;
         }
+    }
+
+    if(buf != NULL) {
+        buf->name = strdup(name);
+        buf->flags = flags;
+        buf->input_mode = initial_imode;
+    
+        IModeCallbacks* imode_calls = &g_txmst->imode_callbacks[initial_imode];
+        if(imode_calls->buffer_added) {
+            imode_calls->buffer_added(buf);
+        }
+
+        switch_to_buffer(buf);
     }
 
     return buf;
@@ -89,17 +92,20 @@ void delete_buffer(Buffer* buf) {
     }
 }
 
-void update_buffers() {
-    
-    for(size_t i = 0; i < MAX_BUFFERS; i++) {
-        Buffer* buf = g_txmst->buffers[i];
-        if(buf == NULL) {
-            continue;
-        }
-
-        buffer_write_to_terminal(buf);
+void switch_to_buffer(Buffer* buf) {
+    if(g_txmst->buffer) {
+        buffer_clean_visible_rows(g_txmst->buffer); // Clean the current buffer first.
     }
 
+    g_txmst->buffer = buf;
+    if(buf != NULL) {
+        buffer_clean_visible_rows(buf);
+    }
+}
+
+void update_buffers() { 
+        
+    buffer_write_to_terminal(g_txmst->buffer);
     g_txmst->update_buffers = false;
 }
 

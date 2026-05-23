@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 #define MEMSIZE_INCREASE_AMOUNT 64
@@ -27,10 +28,10 @@ void bufrow_free(Bufrow* row) {
 
 
 static
-void bufrow_memprep_add(Bufrow* row, size_t num_bytes_adding) {
-    if(row->memsize <= row->len + num_bytes_adding) {    
-        size_t new_size = row->len + num_bytes_adding + MEMSIZE_INCREASE_AMOUNT; 
-
+void bufrow_prep_memory(Bufrow* row, size_t new_length) {
+    if(row->memsize <= new_length) {
+        size_t new_size = new_length + MEMSIZE_INCREASE_AMOUNT; 
+        row->memsize = new_size;
         row->data 
             = realloc
             (
@@ -41,7 +42,7 @@ void bufrow_memprep_add(Bufrow* row, size_t num_bytes_adding) {
 }
 
 void bufrow_insert_char(Bufrow* row, ssize_t position, char c) {
-    bufrow_memprep_add(row, 1);
+    bufrow_prep_memory(row, row->len + 1);
 
     for(ssize_t i = row->len; i >= position && i > 0; i--) {
         row->data[i] = row->data[i-1];
@@ -79,6 +80,12 @@ void bufrow_cut(Bufrow* row, ssize_t position, size_t len) {
     for(size_t i = 0; i < len; i++) {
         bufrow_delete_char(row, position);
     }
+}
+
+void bufrow_set(Bufrow* row, char* data, size_t len) {
+    bufrow_prep_memory(row, len);
+    memmove(row->data, data, len);
+    row->len = len;
 }
 
 BufrowSubstr bufrow_substr (Bufrow* row, ssize_t position, size_t len) {
@@ -120,7 +127,7 @@ out:
 }
 
 void bufrow_insert_substr(Bufrow* row, ssize_t position, BufrowSubstr substr) {
-    if(position > row->len || substr.data_ptr == NULL || substr.len == 0) {
+    if(position > (ssize_t)row->len || substr.data_ptr == NULL || substr.len == 0) {
         return;
     }
 

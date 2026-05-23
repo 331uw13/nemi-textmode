@@ -3,24 +3,23 @@
 
 #include "types.h"
 #include "bufrow.h"
-#include "input_modes/input_modes.h"
+#include "input_modes.h"
 
 
 #define BUFFER_NO_FLAGS 0
-#define BUFFER_NONUMBER        (1 << 0)
-#define BUFFER_NOMODE_INTITLE  (1 << 1)
-#define BUFFER_INTERACTABLE    (1 << 2)
-#define BUFFER_MOUSE_DRAG_MOVE (1 << 3)
-#define BUFFER_HIDE            (1 << 4)
+#define BUFFER_NO_NUMBER         (1 << 0) // No row numbers.
+#define BUFFER_NO_MODE_IN_TITLE  (1 << 1) // No mode string in title bar.
+#define BUFFER_READONLY_FOR_USER (1 << 2) // The user cannot edit text, but functions which can, still work.
+#define BUFFER_IMODE_CANT_CHANGE (1 << 3) // Buffer input mode cant be changed with user keypress event.
 
 typedef struct Buffer_t {
-    size_t index;
+    size_t   index;
     uint64_t flags;
-    char*   title;
-    Bufrow* rows_head;
-    Bufrow* rows_tail;
-    Bufrow* rows;
-    size_t  num_row_nodes;
+    char*    name;
+    Bufrow*  rows_head;
+    Bufrow*  rows_tail;
+    Bufrow*  rows;
+    size_t   num_row_nodes;
     //size_t  num_row_nodes_alloc;
     
     size_t  num_rows;
@@ -28,32 +27,27 @@ typedef struct Buffer_t {
     ssize_t cursor_row;
     ssize_t cursor_col;
     
-    ssize_t   yscroll;
+    ssize_t   yscroll; // Vertical scroll.
 
-    int     row_offset;
-    int     col_offset;
-    int     position_row;
-    int     position_col;
+    int     row_offset; // How many rows to offset drawing.
+    int     col_offset; // How many columns to offset drawing.
 
     int     max_row;
     int     max_col;
-    bool    is_full_max_row;
-    bool    is_full_max_col;
+
 
     InputMode input_mode;
 }
 Buffer;
 
-#define BUFFER_FULL_MAX_ROW -1
-#define BUFFER_FULL_MAX_COL -1
-Buffer* buffer_allocate(int max_row, int max_col);
-void    buffer_free    (Buffer* buf);
+Buffer* buffer_init ();
+void    buffer_free (Buffer* buf);
 
 
 void buffer_move_cursor_to (Buffer* buf, ssize_t row, ssize_t col); 
 void buffer_move_cursor    (Buffer* buf, int row_offset, int col_offset);
-bool buffer_insert_row     (Buffer* buf, size_t position);
-bool buffer_delete_row     (Buffer* buf, size_t position);
+Bufrow* buffer_insert_row     (Buffer* buf, size_t position);
+bool    buffer_delete_row     (Buffer* buf, size_t position);
 
 Bufrow* buffer_get_row  (Buffer* buf, ssize_t position);
 int buffer_screen_max_row (Buffer* buf);

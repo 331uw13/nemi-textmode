@@ -1,11 +1,9 @@
-#include "nemi.h"
-
-
-
-#include "text_mode.h"
-
 #include <stdio.h>
 #include <math.h>
+
+#include "nemi.h"
+#include "text_mode.h"
+
 
 
 static const int KEYBIND_TOGGLE[] = {
@@ -18,10 +16,28 @@ static const int KEYBIND_BROWSE_FILES[] = {
     GLFW_KEY_LEFT_CONTROL
 };
 
-#define BUFFER_CLOSE_STR "(x)"
-#define BUFFER_CLOSE_STR_LEN 3
+static const int KEYBIND_NEXT_BUFFER[] = {
+    GLFW_KEY_N,
+    GLFW_KEY_LEFT_CONTROL
+};
+
+static const int KEYBIND_PREV_BUFFER[] = {
+    GLFW_KEY_P,
+    GLFW_KEY_LEFT_CONTROL
+};
+
+static const int KEYBIND_BUFFER_IMODE_VIEW[] = {
+    GLFW_KEY_X,
+    GLFW_KEY_LEFT_CONTROL
+};
+
+static const int KEYBIND_BUFFER_IMODE_INSERT[] = {
+    GLFW_KEY_I,
+    GLFW_KEY_LEFT_CONTROL
+};
 
 
+/*
 static
 bool p_mouse_on_box(Nemi* nemi, Buffer* buf, int row, int col, int width_cols, int height_rows) {
     
@@ -39,68 +55,8 @@ bool p_mouse_on_box(Nemi* nemi, Buffer* buf, int row, int col, int width_cols, i
 
     return false;
 }
+*/
 
-
-static
-void p_update_buffer_uiinteraction(Buffer* buf) {
-    Nemi* nemi = nmt_getst();
-    TXModest* txmst = get_txmst();
-
-    int mouse_col = floor(nemi->mouse_x / nemi->font.char_width);
-    int mouse_row = floor(nemi->mouse_y / (nemi->font.char_height + nemi->cfg.main.line_padding));
-    
-    bool mouse_down = glfwGetMouseButton(nemi->lfctx->glfw_win, GLFW_MOUSE_BUTTON_LEFT);
-
-    bool mouse_on_titlebar 
-        = p_mouse_on_box(nemi, buf, 
-                buf->position_row,
-                buf->position_col,
-                buf->max_col, 1);
-
-    bool mouse_on_close
-        = p_mouse_on_box(nemi, buf, 
-                buf->position_row,
-                buf->position_col + buf->max_col - BUFFER_CLOSE_STR_LEN,
-                BUFFER_CLOSE_STR_LEN, 1);
-
-    if(mouse_on_close && nemi->last_mouse_button == GLFW_MOUSE_BUTTON_LEFT) {
-        delete_buffer(buf);
-        txmst->update_buffers = true;
-        return;
-    }
-
-
-    // For how this will clear the buffer
-    // data and keep it from updating it again.
-    // Dont want to deal with keeping track of which column and row must be updated
-    // while moving the buffer. TODO: ^ future improvement.
-
-    /*
-    if(mouse_on_titlebar && mouse_down) {
-        if(!(buf->flags & BUFFER_MOUSE_DRAG_MOVE)) {
-            buffer_clean_visible_rows(buf);
-        }
-        buf->flags |= BUFFER_MOUSE_DRAG_MOVE;
-        buf->flags |= BUFFER_HIDE;
-    }
-    else
-    if(!mouse_down) {
-        
-        if(buf->flags & BUFFER_HIDE) {
-            buf->flags &= ~BUFFER_HIDE;
-            txmst->update_buffers = true;
-        }
-        buf->flags &= ~BUFFER_MOUSE_DRAG_MOVE;
-    }
-
-    if(buf->flags & BUFFER_MOUSE_DRAG_MOVE) {
-        
-        buf->position_col = mouse_col - buf->max_col / 2;   
-        buf->position_row = mouse_row;
-
-    }
-    */
-}
 
 void module_event_render() {
     Nemi* nemi = nmt_getst();
@@ -112,149 +68,87 @@ void module_event_render() {
 
 
 
-    for(size_t i = 0; i < MAX_BUFFERS; i++) {
-        Buffer* buffer = txmst->buffers[i];
-        if(buffer == NULL) {
-            continue;
-        }
-
-        if(buffer->flags & BUFFER_INTERACTABLE) {
-            p_update_buffer_uiinteraction(buffer);
-        }
-
+    Buffer* buffer = txmst->buffer;
+    if(buffer == NULL) {
+        return;
+    }
  
-        if(!(buffer->flags & BUFFER_HIDE)) {
 
-            // Cursor
-            int cursor_x = nmt_coltox(nemi, 
-                    buffer->position_col + buffer->cursor_col + buffer->col_offset);
+    // Cursor
+    int cursor_x = nmt_coltox(nemi, 
+            buffer->cursor_col + buffer->col_offset);
 
-            int cursor_y = nmt_rowtoy(nemi, 
-                    buffer->position_row + buffer->cursor_row + buffer->row_offset - buffer->yscroll);
+    int cursor_y = nmt_rowtoy(nemi, 
+            buffer->cursor_row + buffer->row_offset - buffer->yscroll);
 
-            leaf_draw_rect
-            (
-                cursor_x,
-                cursor_y,
-                nemi->font.char_width,
-                nemi->font.char_height,
-                (struct color_t) {
-                    10, 60, 60
-                }
-            );
+    leaf_draw_rect
+    (
+        cursor_x,
+        cursor_y,
+        nemi->font.char_width,
+        nemi->font.char_height,
+        (RGBColor) {
+            10, 60, 60
         }
+    );
 
-
-        // Buffer title.
-        leaf_draw_rect
-        (
-            nmt_coltox(nemi, buffer->position_col),
-            nmt_rowtoy(nemi, buffer->position_row),
-            buffer->max_col * nemi->font.char_width,
-            nemi->font.char_height + 2,
-            (struct color_t) {
-                20, 20, 20
-            }
-        );
-
-        // Border.
-        {
-            struct color_t border_color = (struct color_t){ 20, 80, 50 };
-            struct color_t border_color_dim = (struct color_t){ 10, 30, 25 };
-            
-            // Top.
-            leaf_draw_rect
-            (
-                nmt_coltox(nemi, buffer->position_col) - 2,
-                nmt_rowtoy(nemi, buffer->position_row) - 2,
-                buffer->max_col * nemi->font.char_width + 2,
-                1,
-                border_color
-            );
-
-            // Bottom.
-            leaf_draw_rect
-            (
-                nmt_coltox(nemi, buffer->position_col) - 2,
-                nmt_rowtoy(nemi, buffer->position_row + buffer_screen_max_row(buffer)+1) + 8,
-                buffer->max_col * nemi->font.char_width + 2,
-                1,
-                border_color_dim
-            );
-
-            // Left.
-            leaf_draw_rect
-            (
-                nmt_coltox(nemi, buffer->position_col) - 2,
-                nmt_rowtoy(nemi, buffer->position_row) - 2,
-                1,
-                nmt_rowtoy(nemi, buffer_screen_max_row(buffer)+1),
-                border_color
-            );
-
-            // Right.
-            leaf_draw_rect
-            (
-                nmt_coltox(nemi, buffer->position_col + buffer->max_col),
-                nmt_rowtoy(nemi, buffer->position_row) - 2,
-                1,
-                nmt_rowtoy(nemi, buffer_screen_max_row(buffer)+1),
-                border_color_dim
-            );
+    // Buffer title box.
+    leaf_draw_rect
+    (
+        nmt_coltox(nemi, 0),
+        nmt_rowtoy(nemi, 0),
+        buffer->max_col * nemi->font.char_width,
+        nemi->font.char_height + 2,
+        (RGBColor) {
+            20, 20, 20
         }
+    );
 
 
-        // Buffer close "button"
-        if(buffer->flags & BUFFER_INTERACTABLE) {
-            nemi->font.char_color_r = 0.4f;
-            nemi->font.char_color_g = 0.4f;
-            nemi->font.char_color_b = 0.4f;
+    // Title.
 
-            leaf_draw_text
-            (
-                &nemi->font,
-                nmt_coltox(nemi, buffer->position_col + buffer->max_col - BUFFER_CLOSE_STR_LEN),
-                nmt_rowtoy(nemi, buffer->position_row),
-                BUFFER_CLOSE_STR,
-                BUFFER_CLOSE_STR_LEN
-            );
-        }
+    char buffer_title[32] = {0};
+    ssize_t buffer_title_len = 0;
+    const char* buffer_name = buffer->name == NULL ? "" : buffer->name;
 
 
 
-        // Title.
+    switch(buffer->input_mode) {
+    
+        case IMODE_INSERT:
+            buffer_title_len 
+                = snprintf(buffer_title, sizeof(buffer_title)-1,
+                    "%s%s", 
+                    buffer_name,
+                    (buffer->flags & BUFFER_NO_MODE_IN_TITLE) ? "" : " [insert]");
+            break;
 
-        char title_str[32] = { 0 };
-        const char* buffer_title = buffer->title == NULL ? "" : buffer->title;
-        nemi->font.char_color_r = 0.3f;
-        nemi->font.char_color_g = 0.7f;
-        nemi->font.char_color_b = 0.4f;
+        case IMODE_VIEW:
+            buffer_title_len 
+                = snprintf(buffer_title, sizeof(buffer_title)-1,
+                    "%s%s", 
+                    buffer_name,
+                    (buffer->flags & BUFFER_NO_MODE_IN_TITLE) ? "" : " [view]");
+            break;
 
-        switch(buffer->input_mode) {
-        
-            case IMODE_INSERT:
-                snprintf(title_str, sizeof(title_str)-1,
-                        "%s%s", 
-                        buffer_title,
-                        (buffer->flags & BUFFER_NOMODE_INTITLE) ? "" : " [insert]");
-                break;
 
-            case IMODE_VIEW:
-                snprintf(title_str, sizeof(title_str)-1,
-                        "%s%s", 
-                        buffer_title,
-                        (buffer->flags & BUFFER_NOMODE_INTITLE) ? "" : " [view]");
-                break;
+        default:
+            buffer_title_len
+                = snprintf(buffer_title, sizeof(buffer_title)-1, "@%s", buffer_name);
+            break;
+            // ...
+    }
 
-                // ...
-        }
 
+    if(buffer_title_len > 0) {
+
+        leaf_set_font_color(&nemi->font, (RGBColor){ 150, 120, 180 });
         leaf_draw_text
         (
             &nemi->font,
-            nmt_coltox(nemi, buffer->position_col),
-            nmt_rowtoy(nemi, buffer->position_row),
-            title_str, strlen(title_str)
+            nmt_coltox(nemi, 0),
+            nmt_rowtoy(nemi, 0),
+            buffer_title, buffer_title_len
         );
     }
     
@@ -276,25 +170,15 @@ void module_event_key_input(int key, int mods) {
     }
 
 
-    handle_input_mode_shared_keypress(key, mods);
 
-    switch(txmst->buffer->input_mode) {
-        case IMODE_INSERT:
-            handle_input_mode_insert_keypress(key, mods);
-            break;
-
-        case IMODE_VIEW:
-            handle_input_mode_view_keypress(key, mods);
-            break;
-
-        default:
-            logprintf(LOG_ERROR, "(textmode.so): Input mode not handled. (key press)");
-            break;
-        // ...
-    }
+    IModeCallbacks* imode_calls = &txmst->imode_callbacks[txmst->buffer->input_mode];
     
+    if(imode_calls->buffer_keypress) {
+        imode_calls->buffer_keypress(txmst->buffer, key, mods);
+    }
+
+
     txmst->update_buffers = true;
-    //update_text_to_terminal();
 }
 
 void module_event_char_input(char ch) {
@@ -312,26 +196,13 @@ void module_event_char_input(char ch) {
         return;
     }
 
-    switch(txmst->buffer->input_mode) {
-        case IMODE_INSERT:
-            handle_input_mode_insert_charpress(ch);
-            break;
 
-        case IMODE_VIEW:
-            handle_input_mode_view_charpress(ch);
-            break;
-
-        default:
-            logprintf(LOG_ERROR, "(textmode.so): Input mode not handled. (char press)");
-            break;
-        // ...
+    IModeCallbacks* imode_calls = &txmst->imode_callbacks[txmst->buffer->input_mode];
+    
+    if(imode_calls->buffer_chrpress) {
+        imode_calls->buffer_chrpress(txmst->buffer, ch);
     }
 
-    /*
-    Bufrow* row = buffer_get_row(txmst->buffer, txmst->buffer->cursor_row);
-    bufrow_insert_char(row, txmst->buffer->cursor_col, ch);
-    txmst->buffer->cursor_col++;
-    */
 
     txmst->update_buffers = true;
 }
@@ -345,17 +216,12 @@ void module_event_window_resized() {
             continue;
         }
 
-        if(buffer->is_full_max_row) {
-            buffer->max_row = txmst->term->rows;
-        }
-        
-        if(buffer->is_full_max_col) {
-            buffer->max_col = txmst->term->cols;
-        }
+        buffer->max_row = txmst->term->rows;
+        buffer->max_col = txmst->term->cols;
     }
 }
 
-void toggle_module() {
+void kb_toggle_module() {
     Nemi* nemi = nmt_getst();
     TXModest* txmst = get_txmst();
 
@@ -379,18 +245,69 @@ void toggle_module() {
 }
 
 
-void open_file_browsing() {
+void kb_open_file_browsing() {
     TXModest* txmst = get_txmst();
     if(!txmst->enabled) {
         return;
     }
 
 
-    add_new_buffer("Files", 
-            (GridRect){ .row = 5, .col = 5, .max_row = 10, .max_col = 20 }, 
-            BUFFER_INTERACTABLE);
+    add_new_buffer("files", IMODE_FILES, BUFFER_IMODE_CANT_CHANGE);
 }
 
+
+void kb_switch_to_next_buffer() {
+    TXModest* txmst = get_txmst();
+    if(!txmst->enabled) {
+        return;
+    }
+    for(size_t i = txmst->buffer->index+1; i < MAX_BUFFERS; i++) {
+        Buffer* buf = txmst->buffers[i];
+        if(buf != NULL) {
+            switch_to_buffer(buf);
+            break;
+        }
+    }
+}
+
+void kb_switch_to_prev_buffer() {
+    TXModest* txmst = get_txmst();
+    if(!txmst->enabled) {
+        return;
+    }
+
+    for(ssize_t i = txmst->buffer->index-1; i >= 0; i--) {
+        Buffer* buf = txmst->buffers[i];
+        if(buf != NULL) {
+            switch_to_buffer(buf);
+            break;
+        }
+    }
+}
+
+void kb_buffer_imode_insert() {
+    TXModest* txmst = get_txmst();
+    if(!txmst->enabled) {
+        return;
+    }
+    if(txmst->buffer->flags & BUFFER_IMODE_CANT_CHANGE) {
+        return;
+    }
+
+    txmst->buffer->input_mode = IMODE_INSERT;
+}
+
+void kb_buffer_imode_view() {
+    TXModest* txmst = get_txmst();
+    if(!txmst->enabled) {
+        return;
+    }
+    if(txmst->buffer->flags & BUFFER_IMODE_CANT_CHANGE) {
+        return;
+    }
+
+    txmst->buffer->input_mode = IMODE_VIEW;
+}
 
 void module_loaded(size_t module_idx) {
     create_txmst();
@@ -404,7 +321,7 @@ void module_loaded(size_t module_idx) {
     (
         nemi, 
         module_idx,
-        toggle_module,
+        kb_toggle_module,
         KEYBIND_TOGGLE, 
         ARRAY_LEN(KEYBIND_TOGGLE)
     );
@@ -413,10 +330,65 @@ void module_loaded(size_t module_idx) {
     (
         nemi,
         module_idx, 
-        open_file_browsing, 
+        kb_open_file_browsing, 
         KEYBIND_BROWSE_FILES,
         ARRAY_LEN(KEYBIND_BROWSE_FILES)
     );
+
+    nmt_assign_module_keybind
+    (
+        nemi,
+        module_idx, 
+        kb_switch_to_next_buffer, 
+        KEYBIND_NEXT_BUFFER,
+        ARRAY_LEN(KEYBIND_NEXT_BUFFER)
+    );
+
+    nmt_assign_module_keybind
+    (
+        nemi,
+        module_idx, 
+        kb_switch_to_prev_buffer, 
+        KEYBIND_PREV_BUFFER,
+        ARRAY_LEN(KEYBIND_PREV_BUFFER)
+    );
+
+    nmt_assign_module_keybind
+    (
+        nemi,
+        module_idx, 
+        kb_buffer_imode_insert, 
+        KEYBIND_BUFFER_IMODE_INSERT,
+        ARRAY_LEN(KEYBIND_BUFFER_IMODE_INSERT)
+    );
+
+    nmt_assign_module_keybind
+    (
+        nemi,
+        module_idx, 
+        kb_buffer_imode_view, 
+        KEYBIND_BUFFER_IMODE_VIEW,
+        ARRAY_LEN(KEYBIND_BUFFER_IMODE_VIEW)
+    );
+
+    txmst->imode_callbacks[IMODE_INSERT] = (IModeCallbacks) {
+        .buffer_added    = NULL,
+        .buffer_keypress = imode_INSERT_keypress,
+        .buffer_chrpress = imode_INSERT_chrpress
+    };
+
+    txmst->imode_callbacks[IMODE_VIEW] = (IModeCallbacks) {
+        .buffer_added    = NULL,
+        .buffer_keypress = imode_VIEW_keypress,
+        .buffer_chrpress = imode_VIEW_chrpress
+    };
+
+    txmst->imode_callbacks[IMODE_FILES] = (IModeCallbacks) {
+        .buffer_added    = imode_FILES_buffer_added,
+        .buffer_keypress = imode_FILES_keypress,
+        .buffer_chrpress = imode_FILES_chrpress
+    };
+
 }
 
 
