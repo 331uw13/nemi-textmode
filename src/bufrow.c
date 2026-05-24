@@ -136,4 +136,17 @@ void bufrow_insert_substr(Bufrow* row, ssize_t position, BufrowSubstr substr) {
     }
 }
 
+int bufrow_count_indent(Bufrow* row) {
+    int count = 0;
+    char* c = row->data;
+    char* end = c + row->len;
+    while(c < end) {
+        if(*c != ' ') {
+            break;
+        }
+        count++;
+        c++;
+    }
+    return count;
+}
 

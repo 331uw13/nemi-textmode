@@ -20,37 +20,24 @@ void imode_INSERT_keypress(Buffer* buf, int key, int mods) {
         return;
     }
 
+    if(imode_basic_cursor_movement(buffer, key, mods)) {
+        return;
+    }
+
     switch(key) {
-
-        case GLFW_KEY_I:
-            if(mods & GLFW_MOD_CONTROL) {
-                buffer_move_cursor(buffer, -1, 0);
-            }
-            break;
-
-        case GLFW_KEY_K:
-            if(mods & GLFW_MOD_CONTROL) {
-                buffer_move_cursor(buffer, 1, 0);
-            }
-            break;
-        case GLFW_KEY_J:
-            if(mods & GLFW_MOD_CONTROL) {
-                buffer_move_cursor(buffer, 0, -1);
-            }
-            break;
-
-        case GLFW_KEY_L:
-            if(mods & GLFW_MOD_CONTROL) {
-                buffer_move_cursor(buffer, 0, 1);
-            }
-            break;
-
         case GLFW_KEY_ENTER:
             buffer_eventkey_enter(buffer, row);
             break;
 
         case GLFW_KEY_BACKSPACE:
             buffer_eventkey_backspace(buffer, row);
+            break;
+
+        case GLFW_KEY_TAB:
+            for(int i = 0; i < buffer->settings.tab_width_in; i++) {
+                bufrow_insert_char(row, buf->cursor_col, ' ');
+            }
+            buffer_move_cursor(buffer, 0, buf->settings.tab_width_in);
             break;
     }
 }

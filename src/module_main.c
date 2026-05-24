@@ -33,7 +33,12 @@ static const int KEYBIND_BUFFER_IMODE_VIEW[] = {
 };
 
 static const int KEYBIND_BUFFER_IMODE_INSERT[] = {
-    GLFW_KEY_I,
+    GLFW_KEY_W,
+    GLFW_KEY_LEFT_CONTROL
+};
+
+static const int KEYBIND_BUFFER_IMODE_SELECT[] = {
+    GLFW_KEY_S,
     GLFW_KEY_LEFT_CONTROL
 };
 
@@ -63,6 +68,14 @@ bool p_mouse_on_box(Nemi* nemi, Buffer* buf, int row, int col, int width_cols, i
 */
 
 
+static
+size_t p_select_callback_buffer_get_row_length(void* user_pointer, ssize_t row) {
+    Buffer* buf = (Buffer*)user_pointer;
+    Bufrow* bufrow = buffer_get_row(buf, row);
+    return (bufrow == NULL) ? 0 : bufrow->len;
+}
+
+
 void module_event_render() {
     Nemi* nemi = nmt_getst();
     TXModest* txmst = get_txmst();
@@ -72,6 +85,7 @@ void module_event_render() {
 
 
 
+    // NOTE: This needs to be organized later.
 
     Buffer* buffer = txmst->buffer;
 
@@ -123,7 +137,7 @@ void module_event_render() {
         );
 
 
-        leaf_set_font_color(&nemi->font, (RGBColor){ 150, 120, 180 });
+        leaf_set_font_color(&nemi->font, (RGBColor){ 130, 50, 80 });
         leaf_draw_text
         (
             &nemi->font,
@@ -137,6 +151,15 @@ void module_event_render() {
         
     }
 
+    if(txmst->buffer->input_mode == IMODE_SELECT) {
+        nmt_select_process
+        (
+            txmst->buffer->select,
+            p_select_callback_buffer_get_row_length,
+            buffer_select_render_callback,
+            (void*)txmst->buffer // user pointer.
+        );
+    }
 
     // Cursor
     int cursor_x = nmt_coltox(nemi, 
@@ -193,6 +216,15 @@ void module_event_render() {
                     "%s%s", 
                     buffer_name,
                     (buffer->flags & BUFFER_NO_MODE_IN_TITLE) ? "" : " [view]");
+            break;
+
+
+        case IMODE_SELECT:
+            buffer_title_len 
+                = snprintf(buffer_title, sizeof(buffer_title)-1,
+                    "%s%s", 
+                    buffer_name,
+                    (buffer->flags & BUFFER_NO_MODE_IN_TITLE) ? "" : " [select]");
             break;
 
 
@@ -382,6 +414,22 @@ void kb_buffer_imode_view() {
     txmst->buffer->input_mode = IMODE_VIEW;
 }
 
+void kb_buffer_imode_select() {
+    TXModest* txmst = get_txmst();
+    if(!txmst->enabled) {
+        return;
+    }
+    if(txmst->buffer->flags & BUFFER_IMODE_CANT_CHANGE) {
+        return;
+    }
+
+    txmst->buffer->input_mode = IMODE_SELECT;
+    nmt_select_begin(
+            &txmst->buffer->select,
+            txmst->buffer->cursor_col,
+            txmst->buffer->cursor_row);
+}
+
 void kb_cmd_line_open() {
     TXModest* txmst = get_txmst();
     if(!txmst->enabled) {
@@ -416,6 +464,13 @@ void module_loaded(size_t module_idx) {
         .buffer_chrpress = imode_VIEW_chrpress
     };
 
+    txmst->imode_callbacks[IMODE_SELECT] = (IModeCallbacks) {
+        .buffer_added    = NULL,
+        .buffer_free     = NULL,
+        .buffer_keypress = imode_SELECT_keypress,
+        .buffer_chrpress = imode_SELECT_chrpress
+    };
+
     txmst->imode_callbacks[IMODE_FILES] = (IModeCallbacks) {
         .buffer_added    = imode_FILES_buffer_added,
         .buffer_free     = imode_FILES_buffer_free,
@@ -423,7 +478,8 @@ void module_loaded(size_t module_idx) {
         .buffer_chrpress = imode_FILES_chrpress
     };
     
-    add_new_buffer("files", IMODE_FILES, BUFFER_IMODE_CANT_CHANGE);
+    //add_new_buffer("files", IMODE_FILES, BUFFER_IMODE_CANT_CHANGE);
+    add_new_buffer("test", IMODE_INSERT, BUFFER_NO_FLAGS);
 
     nmt_assign_module_keybind
     (
@@ -477,6 +533,15 @@ void module_loaded(size_t module_idx) {
         kb_buffer_imode_view, 
         KEYBIND_BUFFER_IMODE_VIEW,
         ARRAY_LEN(KEYBIND_BUFFER_IMODE_VIEW)
+    );
+
+    nmt_assign_module_keybind
+    (
+        nemi,
+        module_idx, 
+        kb_buffer_imode_select, 
+        KEYBIND_BUFFER_IMODE_SELECT,
+        ARRAY_LEN(KEYBIND_BUFFER_IMODE_SELECT)
     );
 
     nmt_assign_module_keybind

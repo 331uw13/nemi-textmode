@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "bufrow.h"
+#include "select_region.h"
 #include "input_modes.h"
 
 
@@ -11,6 +12,7 @@
 #define BUFFER_NO_MODE_IN_TITLE  (1 << 1) // No mode string in title bar.
 #define BUFFER_READONLY_FOR_USER (1 << 2) // The user cannot edit text, but functions which can, still work.
 #define BUFFER_IMODE_CANT_CHANGE (1 << 3) // Buffer input mode cant be changed with user keypress event.
+
 
 typedef struct Buffer_t {
     size_t   index;
@@ -35,6 +37,8 @@ typedef struct Buffer_t {
 
     int     max_row;
     int     max_col;
+    
+    NSelectRegion  select;
 
     struct {
         int tab_width_in;  // Tab width in editor.
@@ -42,8 +46,8 @@ typedef struct Buffer_t {
     }
     settings;
 
-    InputMode input_mode;
-    void*     user_pointer; // Mainly reserved for custom input modes.
+    InputMode     input_mode;
+    void*         user_pointer; // Mainly reserved for custom input modes.
 }
 Buffer;
 
@@ -77,6 +81,9 @@ void buffer_save_file          (Buffer* buf);
 void buffer_insert_char (Buffer* buf, ssize_t row, ssize_t column, char c);
 void buffer_delete_char (Buffer* buf, ssize_t row, ssize_t column);
 */
+
+
+void buffer_select_render_callback(void* userptr, ssize_t row, ssize_t row_length, ssize_t col_begin);
 
 
 

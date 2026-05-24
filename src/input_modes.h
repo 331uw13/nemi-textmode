@@ -5,8 +5,8 @@
 typedef enum InputMode_e : int {
     IMODE_VIEW,
     IMODE_INSERT,
+    IMODE_SELECT,
     //IMODE_REPLACE,
-    //IMODE_SELECT
 
 
     IMODE_FILES,
@@ -27,12 +27,17 @@ typedef struct IModeCallbacks_t {
 }
 IModeCallbacks;
 
+// Returns 'true' if cursor was moved.
+bool imode_basic_cursor_movement       (Buffer* buf, int key, int mods);
 
 extern void imode_INSERT_keypress      (Buffer* buf, int key, int mods);
 extern void imode_INSERT_chrpress      (Buffer* buf, char c);
 
 extern void imode_VIEW_keypress        (Buffer* buf, int key, int mods);
 extern void imode_VIEW_chrpress        (Buffer* buf, char c);
+
+extern void imode_SELECT_keypress      (Buffer* buf, int key, int mods);
+extern void imode_SELECT_chrpress      (Buffer* buf, char c);
 
 extern void imode_FILES_buffer_added   (Buffer* buf);
 extern void imode_FILES_buffer_free    (Buffer* buf);

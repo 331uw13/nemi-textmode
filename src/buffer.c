@@ -3,7 +3,7 @@
 #include "buffer.h"
 #include "text_mode.h"
 
-#include "log.h"
+#include "nemi.h"
 #include "fileio.h"
 
 #include <stdlib.h>
@@ -255,8 +255,8 @@ Bufrow* buffer_insert_row(Buffer* buf, size_t position) {
     }
 
     buf->num_rows++;
-    //validate_linked_list(buf);
 
+    //validate_linked_list(buf);
     //buf->num_row_nodes++;
     return new_row;
 }
@@ -349,6 +349,8 @@ void buffer_eventkey_enter(Buffer* buf, Bufrow* row) {
         return;
     }
 
+    int row_indent = bufrow_count_indent(row);
+
     // This is the new inserted row.
     Bufrow* row_below = row->next; 
 
@@ -358,8 +360,13 @@ void buffer_eventkey_enter(Buffer* buf, Bufrow* row) {
         bufrow_insert_substr(row_below, 0, substr);
         bufrow_cut(row, buf->cursor_col, row->len - buf->cursor_col);
     }
-        
-    buffer_move_cursor_to(buf, buf->cursor_row+1, 0);
+    
+
+    for(int i = 0; i < row_indent; i++) {
+        bufrow_insert_char(row_below, 0, ' ');
+    }
+
+    buffer_move_cursor_to(buf, buf->cursor_row+1, row_indent);
 }
 
 void buffer_eventkey_backspace(Buffer* buf, Bufrow* row) {
@@ -369,20 +376,18 @@ void buffer_eventkey_backspace(Buffer* buf, Bufrow* row) {
         return;
     }
 
-    if(row->len == 0) {
-        buffer_delete_row(buf, buf->cursor_row);
-        buffer_move_cursor(buf, -1, 0);
+    if(buf->cursor_row <= 0) {
+        return;
     }
-    else
-    if(row->prev) {
 
-        size_t above_row_old_len = row->prev->len;
+    size_t above_row_old_len = row->prev == NULL ? 0 : row->prev->len;
+    if(row->prev != NULL) {
         BufrowSubstr substr = bufrow_substr_p(row, 0, row->len);
         bufrow_insert_substr(row->prev, row->prev->len, substr);
-
-        buffer_delete_row(buf, buf->cursor_row);
-        buffer_move_cursor_to(buf, buf->cursor_row-1, above_row_old_len);
     }
+
+    buffer_delete_row(buf, buf->cursor_row);
+    buffer_move_cursor_to(buf, buf->cursor_row-1, above_row_old_len);
 }
 
 void buffer_clean_visible_rows(Buffer* buf) {
@@ -493,6 +498,9 @@ void buffer_read_file(Buffer* buf, const char* file_path) {
 
     char* c = file;
     char* end = file + file_size;
+
+    size_t num_nonascii = 0;
+
     while(c < end) {
    
 
@@ -510,8 +518,7 @@ void buffer_read_file(Buffer* buf, const char* file_path) {
             bufrow_insert_char(row, row->len, *c);
         }
         else {
-            logprintf(LOG_WARN, "Non-ASCII character was hit, when reading a file: 0x%02X",
-                    *c);
+            num_nonascii++;
         }
 
         c++;
@@ -522,7 +529,29 @@ void buffer_read_file(Buffer* buf, const char* file_path) {
     }
 
     buf->opened_file_path = strdup(file_path);
+
+
+    if(num_nonascii > 0) {
+        logprintf(LOG_WARN, "%li Non-ASCII character was hit, when reading a file.", num_nonascii);
+    }
 }
 
 void buffer_save_file(Buffer* buf) {
 }
+
+
+
+void buffer_select_render_callback(void* userptr, ssize_t row, ssize_t row_length, ssize_t col_begin) {
+    Nemi* nemi = nmt_getst();
+    Buffer* buf = (Buffer*)userptr;
+
+    leaf_draw_rect  
+    (
+        nmt_coltox(nemi, buf->col_offset + col_begin),   
+        nmt_rowtoy(nemi, buf->row_offset + row - buf->yscroll),
+        nemi->font.char_width * row_length,
+        nemi->font.char_height + nemi->cfg.main.line_padding,
+        nemi->cfg.colors[NEMI_COLOR_TERM_SELECT_REG]   
+    );
+}
+

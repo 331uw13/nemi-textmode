@@ -40,7 +40,6 @@ void handle_cmd_line_keypress(int key, int mods) {
             string_nullterm(&txmst->cmd_str);
             {
 
-                printf("%s\n", txmst->cmd_str.bytes);
                 if(strcmp(txmst->cmd_str.bytes, "close") == 0) {
                     delete_buffer(txmst->buffer);
                 }

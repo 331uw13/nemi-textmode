@@ -34,5 +34,8 @@ BufrowSubstr bufrow_substr        (Bufrow* row, ssize_t position, size_t len);
 BufrowSubstr bufrow_substr_p      (Bufrow* row, ssize_t begin, ssize_t end);
 void         bufrow_insert_substr (Bufrow* row, ssize_t position, BufrowSubstr substr);
 
+// Returns the number of whitespace characters at the begin or data.
+int          bufrow_count_indent  (Bufrow* row);
+
 
 #endif
