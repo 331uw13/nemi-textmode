@@ -3,11 +3,12 @@
 
 #include "nemi.h"
 #include "text_mode.h"
+#include "cmd_line.h"
 
 
 
 static const int KEYBIND_TOGGLE[] = {
-    GLFW_KEY_E,
+    GLFW_KEY_U,
     GLFW_KEY_LEFT_CONTROL
 };
 
@@ -36,6 +37,10 @@ static const int KEYBIND_BUFFER_IMODE_INSERT[] = {
     GLFW_KEY_LEFT_CONTROL
 };
 
+static const int KEYBIND_CMDLINE_OPEN[] = {
+    GLFW_KEY_L,
+    GLFW_KEY_LEFT_CONTROL
+};
 
 /*
 static
@@ -70,9 +75,67 @@ void module_event_render() {
 
     Buffer* buffer = txmst->buffer;
     if(buffer == NULL) {
+        const char* message = "No buffer opened. Press <?> for help ...";
+        
+        leaf_set_font_color(&nemi->font, (RGBColor){ 150, 150, 150 });
+        leaf_draw_text
+        (
+            &nemi->font,
+            10,
+            10,
+            message, 
+            strlen(message)
+        );
         return;
     }
+
+
+
+    int status_line_y = nmt_rowtoy(nemi, nemi->win_rows-1);
  
+    // Status line box
+    leaf_draw_rect
+    (
+        nmt_coltox(nemi, 0),
+        status_line_y,
+        buffer->max_col * nemi->font.char_width,
+        nemi->font.char_height + 2,
+        (RGBColor) {
+            13, 13, 13
+        }
+    );
+
+    if(txmst->cmd_line_enabled) {
+
+        // Cursor
+        int cursor_x = nmt_coltox(nemi, txmst->cmd_line_cursor);
+
+        leaf_draw_rect
+        (
+            cursor_x,
+            status_line_y,
+            nemi->font.char_width,
+            nemi->font.char_height,
+            (RGBColor) {
+                80, 20, 30
+            }
+        );
+
+
+        leaf_set_font_color(&nemi->font, (RGBColor){ 150, 120, 180 });
+        leaf_draw_text
+        (
+            &nemi->font,
+            nmt_coltox(nemi, 0),
+            status_line_y,
+            txmst->cmd_str.bytes, 
+            txmst->cmd_str.size
+        );
+    }
+    else {
+        
+    }
+
 
     // Cursor
     int cursor_x = nmt_coltox(nemi, 
@@ -165,10 +228,14 @@ void module_event_key_input(int key, int mods) {
         return;
     }
 
-    if(!txmst->buffer) {
+    if(txmst->cmd_line_enabled) {
+        handle_cmd_line_keypress(key, mods);
         return;
     }
 
+    if(!txmst->buffer) {
+        return;
+    }
 
 
     IModeCallbacks* imode_calls = &txmst->imode_callbacks[txmst->buffer->input_mode];
@@ -191,6 +258,11 @@ void module_event_char_input(char ch) {
         return; // Dont accept non-ascii characters.
     }
 
+
+    if(txmst->cmd_line_enabled) {
+        handle_cmd_line_chrpress(ch);
+        return;
+    }
 
     if(!txmst->buffer) {
         return;
@@ -309,6 +381,17 @@ void kb_buffer_imode_view() {
     txmst->buffer->input_mode = IMODE_VIEW;
 }
 
+void kb_cmd_line_open() {
+    TXModest* txmst = get_txmst();
+    if(!txmst->enabled) {
+        return;
+    }
+
+    txmst->cmd_line_enabled = true;
+}
+
+
+
 void module_loaded(size_t module_idx) {
     create_txmst();
     TXModest* txmst = get_txmst();
@@ -317,6 +400,30 @@ void module_loaded(size_t module_idx) {
     
     Nemi* nemi = nmt_getst();
     
+
+    txmst->imode_callbacks[IMODE_INSERT] = (IModeCallbacks) {
+        .buffer_added    = NULL,
+        .buffer_free     = NULL,
+        .buffer_keypress = imode_INSERT_keypress,
+        .buffer_chrpress = imode_INSERT_chrpress
+    };
+
+    txmst->imode_callbacks[IMODE_VIEW] = (IModeCallbacks) {
+        .buffer_added    = NULL,
+        .buffer_free     = NULL,
+        .buffer_keypress = imode_VIEW_keypress,
+        .buffer_chrpress = imode_VIEW_chrpress
+    };
+
+    txmst->imode_callbacks[IMODE_FILES] = (IModeCallbacks) {
+        .buffer_added    = imode_FILES_buffer_added,
+        .buffer_free     = imode_FILES_buffer_free,
+        .buffer_keypress = imode_FILES_keypress,
+        .buffer_chrpress = imode_FILES_chrpress
+    };
+    
+    add_new_buffer("files", IMODE_FILES, BUFFER_IMODE_CANT_CHANGE);
+
     nmt_assign_module_keybind
     (
         nemi, 
@@ -371,24 +478,14 @@ void module_loaded(size_t module_idx) {
         ARRAY_LEN(KEYBIND_BUFFER_IMODE_VIEW)
     );
 
-    txmst->imode_callbacks[IMODE_INSERT] = (IModeCallbacks) {
-        .buffer_added    = NULL,
-        .buffer_keypress = imode_INSERT_keypress,
-        .buffer_chrpress = imode_INSERT_chrpress
-    };
-
-    txmst->imode_callbacks[IMODE_VIEW] = (IModeCallbacks) {
-        .buffer_added    = NULL,
-        .buffer_keypress = imode_VIEW_keypress,
-        .buffer_chrpress = imode_VIEW_chrpress
-    };
-
-    txmst->imode_callbacks[IMODE_FILES] = (IModeCallbacks) {
-        .buffer_added    = imode_FILES_buffer_added,
-        .buffer_keypress = imode_FILES_keypress,
-        .buffer_chrpress = imode_FILES_chrpress
-    };
-
+    nmt_assign_module_keybind
+    (
+        nemi,
+        module_idx, 
+        kb_cmd_line_open, 
+        KEYBIND_CMDLINE_OPEN,
+        ARRAY_LEN(KEYBIND_CMDLINE_OPEN)
+    );
 }
 
 

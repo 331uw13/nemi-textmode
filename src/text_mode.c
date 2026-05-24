@@ -9,8 +9,6 @@ static TXModest* g_txmst = NULL;
 
 void create_txmst() {
     g_txmst = malloc(sizeof *g_txmst);
-
-
     Nemi* nemi = nmt_getst();
 
     g_txmst->term 
@@ -24,10 +22,10 @@ void create_txmst() {
 
     memset(g_txmst->buffers, 0, sizeof *g_txmst->buffers * MAX_BUFFERS);
 
-
-    g_txmst->files_buffer_idx = -1;
-    
-    add_new_buffer("test", IMODE_INSERT, BUFFER_NO_FLAGS);
+    g_txmst->buffer = NULL;
+    g_txmst->cmd_str = string_create(0);
+    g_txmst->cmd_line_enabled = false;
+    g_txmst->cmd_line_cursor = 0;
 }
 
 
@@ -39,6 +37,8 @@ void free_txmst() {
             buffer_free(g_txmst->buffers[i]);
         }
     }
+
+    free_string(&g_txmst->cmd_str);
     free(g_txmst);
 }
 
@@ -54,17 +54,20 @@ Buffer* add_new_buffer(char* name, InputMode initial_imode, uint64_t flags) {
     // Search space for new buffer to add.
     for(size_t i = 0; i < MAX_BUFFERS; i++) {
         if(g_txmst->buffers[i] == NULL) {
-            buf = g_txmst->buffers[i] = buffer_init();
+            g_txmst->buffers[i] = buffer_init();
+            buf = g_txmst->buffers[i];
             buf->index = i;
             break;
         }
     }
 
+
     if(buf != NULL) {
         buf->name = strdup(name);
         buf->flags = flags;
         buf->input_mode = initial_imode;
-    
+   
+
         IModeCallbacks* imode_calls = &g_txmst->imode_callbacks[initial_imode];
         if(imode_calls->buffer_added) {
             imode_calls->buffer_added(buf);
@@ -77,11 +80,22 @@ Buffer* add_new_buffer(char* name, InputMode initial_imode, uint64_t flags) {
 }
 
 void delete_buffer(Buffer* buf) {
+    bool was_active_buffer = buf == g_txmst->buffer;
+
+    IModeCallbacks* imode_calls = &g_txmst->imode_callbacks[buf->input_mode];
+    if(imode_calls->buffer_free) {
+        imode_calls->buffer_free(buf);
+    }
+
     buffer_clean_visible_rows(buf);
 
     size_t index = buf->index;
     buffer_free(buf);
     g_txmst->buffers[index] = NULL;
+
+    if(was_active_buffer) {
+        g_txmst->buffer = NULL;
+    }
 
     for(size_t i = 0; i < MAX_BUFFERS; i++) {
         if(g_txmst->buffers[i] == NULL) {

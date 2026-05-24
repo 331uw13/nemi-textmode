@@ -121,7 +121,9 @@ Buffer* buffer_init() {
     return buf;
 }
 
-void buffer_free(Buffer* buf) {
+
+static
+void p_buffer_free_all_rows(Buffer* buf) {
     Bufrow* row = buf->rows_tail;
     while(row) {
         Bufrow* prev = row->prev;
@@ -133,16 +135,19 @@ void buffer_free(Buffer* buf) {
 
         row = prev;
     }
+    free(buf->rows);
+}
 
+void buffer_free(Buffer* buf) {
+    p_buffer_free_all_rows(buf);
     if(buf->name) {
         free(buf->name);
     }
-    free(buf->rows);
     free(buf);
 }
 
 int buffer_screen_max_row(Buffer* buf) {
-    return buf->max_row - buf->row_offset;
+    return buf->max_row - buf->row_offset - 1;
 }
 
 int buffer_screen_max_col(Buffer* buf) {
@@ -248,7 +253,7 @@ Bufrow* buffer_insert_row(Buffer* buf, size_t position) {
     buf->num_rows++;
     //validate_linked_list(buf);
 
-    buf->num_row_nodes++;
+    //buf->num_row_nodes++;
     return new_row;
 }
 
@@ -263,6 +268,7 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
     if(row == NULL) {
         return false;
     }
+        
 
     if(row->next) {
         row->next->prev = row->prev;
@@ -289,6 +295,8 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
     row->next = NULL;
     row->prev = NULL;
 
+    
+    bufrow_free(row);
 
 
 
@@ -300,6 +308,20 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
     return true;
 }
 
+void buffer_delete_all_rows(Buffer* buf) {
+    buffer_clean_visible_rows(buf);
+    p_buffer_free_all_rows(buf);
+    
+    buf->rows = malloc(sizeof *buf->rows);
+    bufrow_allocate(&buf->rows[0]);
+    buf->rows_head = &buf->rows[0];
+    buf->rows_tail = &buf->rows[0];
+    
+    buf->cursor_col = 0;
+    buf->cursor_row = 0;
+    buf->yscroll = 0;
+    buf->num_rows = 1;
+}
 
 Bufrow* buffer_get_row(Buffer* buf, ssize_t position) {
     if(position < 0 || position > (ssize_t)buf->num_rows + 1) {

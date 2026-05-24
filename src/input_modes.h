@@ -21,6 +21,7 @@ typedef struct Buffer_t Buffer;
 
 typedef struct IModeCallbacks_t {
     void(*buffer_added)(Buffer* buf);
+    void(*buffer_free)(Buffer* buf);
     void(*buffer_keypress)(Buffer* buf, int key, int mods);
     void(*buffer_chrpress)(Buffer* buf, char chr);
 }
@@ -34,6 +35,7 @@ extern void imode_VIEW_keypress        (Buffer* buf, int key, int mods);
 extern void imode_VIEW_chrpress        (Buffer* buf, char c);
 
 extern void imode_FILES_buffer_added   (Buffer* buf);
+extern void imode_FILES_buffer_free    (Buffer* buf);
 extern void imode_FILES_keypress       (Buffer* buf, int key, int mods);
 extern void imode_FILES_chrpress       (Buffer* buf, char c);
 

@@ -19,7 +19,7 @@ typedef struct Buffer_t {
     Bufrow*  rows_head;
     Bufrow*  rows_tail;
     Bufrow*  rows;
-    size_t   num_row_nodes;
+    //size_t   num_row_nodes;
     //size_t  num_row_nodes_alloc;
     
     size_t  num_rows;
@@ -37,6 +37,7 @@ typedef struct Buffer_t {
 
 
     InputMode input_mode;
+    void*     user_pointer; // Mainly reserved for custom input modes.
 }
 Buffer;
 
@@ -48,7 +49,7 @@ void buffer_move_cursor_to (Buffer* buf, ssize_t row, ssize_t col);
 void buffer_move_cursor    (Buffer* buf, int row_offset, int col_offset);
 Bufrow* buffer_insert_row     (Buffer* buf, size_t position);
 bool    buffer_delete_row     (Buffer* buf, size_t position);
-
+void    buffer_delete_all_rows(Buffer* buf);
 Bufrow* buffer_get_row  (Buffer* buf, ssize_t position);
 int buffer_screen_max_row (Buffer* buf);
 int buffer_screen_max_col (Buffer* buf);

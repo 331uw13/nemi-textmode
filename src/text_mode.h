@@ -3,7 +3,7 @@
 
 #include "terminal.h"
 #include "buffer.h"
-
+#include "nmt_string.h"
 
 #define MAX_BUFFERS 24
 
@@ -18,10 +18,12 @@ typedef struct TXModest_t {
     bool enabled;
     bool update_buffers; // By setting this to 'true' will cause all buffers to be updated once.
 
-    ssize_t files_buffer_idx;
-
 
     IModeCallbacks imode_callbacks [IMODE_COUNT];
+
+    bool            cmd_line_enabled;
+    ssize_t         cmd_line_cursor;
+    struct string_t cmd_str;
 }
 TXModest;
 
