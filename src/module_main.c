@@ -38,7 +38,7 @@ static const int KEYBIND_BUFFER_IMODE_INSERT[] = {
 };
 
 static const int KEYBIND_CMDLINE_OPEN[] = {
-    GLFW_KEY_L,
+    GLFW_KEY_M,
     GLFW_KEY_LEFT_CONTROL
 };
 
@@ -74,9 +74,11 @@ void module_event_render() {
 
 
     Buffer* buffer = txmst->buffer;
+
     if(buffer == NULL) {
         const char* message = "No buffer opened. Press <?> for help ...";
-        
+
+
         leaf_set_font_color(&nemi->font, (RGBColor){ 150, 150, 150 });
         leaf_draw_text
         (
@@ -88,7 +90,6 @@ void module_event_render() {
         );
         return;
     }
-
 
 
     int status_line_y = nmt_rowtoy(nemi, nemi->win_rows-1);

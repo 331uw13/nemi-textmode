@@ -23,6 +23,7 @@ void create_txmst() {
     memset(g_txmst->buffers, 0, sizeof *g_txmst->buffers * MAX_BUFFERS);
 
     g_txmst->buffer = NULL;
+    g_txmst->buffer_prev = NULL;
     g_txmst->cmd_str = string_create(0);
     g_txmst->cmd_line_enabled = false;
     g_txmst->cmd_line_cursor = 0;
@@ -93,9 +94,6 @@ void delete_buffer(Buffer* buf) {
     buffer_free(buf);
     g_txmst->buffers[index] = NULL;
 
-    if(was_active_buffer) {
-        g_txmst->buffer = NULL;
-    }
 
     for(size_t i = 0; i < MAX_BUFFERS; i++) {
         if(g_txmst->buffers[i] == NULL) {
@@ -104,17 +102,29 @@ void delete_buffer(Buffer* buf) {
 
         buffer_clean_visible_rows(g_txmst->buffers[i]);
     }
+
+
+    if(was_active_buffer) {
+        g_txmst->buffer = NULL;
+        switch_to_buffer(g_txmst->buffer_prev);
+    }
 }
 
 void switch_to_buffer(Buffer* buf) {
+    if(buf == NULL) {
+        return;
+    }
     if(g_txmst->buffer) {
         buffer_clean_visible_rows(g_txmst->buffer); // Clean the current buffer first.
     }
 
+    g_txmst->buffer_prev = g_txmst->buffer;
     g_txmst->buffer = buf;
     if(buf != NULL) {
         buffer_clean_visible_rows(buf);
     }
+        
+    g_txmst->update_buffers = true;
 }
 
 void update_buffers() { 

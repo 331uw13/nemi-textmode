@@ -14,6 +14,7 @@ typedef struct TXModest_t {
     
     Buffer* buffers [MAX_BUFFERS];
     Buffer* buffer; // Current active buffer.
+    Buffer* buffer_prev;
 
     bool enabled;
     bool update_buffers; // By setting this to 'true' will cause all buffers to be updated once.

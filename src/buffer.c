@@ -4,7 +4,7 @@
 #include "text_mode.h"
 
 #include "log.h"
-
+#include "fileio.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -106,9 +106,13 @@ Buffer* buffer_init() {
     buf->cursor_row = 0;
     buf->row_offset = 1; // Leave room for title bar.
     buf->col_offset = 0;
+    buf->opened_file_path = NULL;
     buf->yscroll = 0;
     buf->input_mode = IMODE_INSERT;
-   
+
+    buf->settings.tab_width_in = 4;
+    buf->settings.tab_width_out = 4;
+
     TXModest* txmst = get_txmst();
     buf->max_row = txmst->term->rows;
     buf->max_col = txmst->term->cols;
@@ -323,6 +327,7 @@ void buffer_delete_all_rows(Buffer* buf) {
     buf->num_rows = 1;
 }
 
+
 Bufrow* buffer_get_row(Buffer* buf, ssize_t position) {
     if(position < 0 || position > (ssize_t)buf->num_rows + 1) {
         return NULL;
@@ -471,4 +476,53 @@ void buffer_write_to_terminal(Buffer* buf) {
     }
         
     //buf->flags &= ~BUFFER_CLEAN_VISIBLE_ROWS;
+}
+
+
+void buffer_read_file(Buffer* buf, const char* file_path) {
+
+    char* file = NULL;
+    size_t file_size = 0;
+
+    if(!map_file(file_path, PROT_READ, &file, &file_size)) {
+        return;
+    }
+
+
+    Bufrow* row = buffer_get_row(buf, 0);
+
+    char* c = file;
+    char* end = file + file_size;
+    while(c < end) {
+   
+
+        if(*c == '\n') {
+            row = buffer_insert_row(buf, buf->num_rows);
+        }
+        else
+        if(*c == '\t') {
+            for(int i = 0; i < buf->settings.tab_width_in; i++) {
+                bufrow_insert_char(row, row->len, ' ');
+            }
+        }
+        else
+        if(*c >= 0x20 && *c <= 0x7E) {
+            bufrow_insert_char(row, row->len, *c);
+        }
+        else {
+            logprintf(LOG_WARN, "Non-ASCII character was hit, when reading a file: 0x%02X",
+                    *c);
+        }
+
+        c++;
+    }
+
+    if(buf->opened_file_path != NULL) {
+        free(buf->opened_file_path);
+    }
+
+    buf->opened_file_path = strdup(file_path);
+}
+
+void buffer_save_file(Buffer* buf) {
 }

@@ -198,7 +198,10 @@ void p_open_selected_file(Buffer* buf) {
     }
 
     FileInfo* selected_finfo = &fg->files[buf->cursor_row - 1];
-    if((selected_finfo->sb.st_mode & S_IFMT) == S_IFDIR) {
+    
+    int type = selected_finfo->sb.st_mode & S_IFMT;
+
+    if(type == S_IFDIR) {
         if(nmt_module_chdir_abs(this_module, selected_finfo->full_path)) {
             p_list_files(buf);
         }
@@ -207,6 +210,24 @@ void p_open_selected_file(Buffer* buf) {
                     selected_finfo->full_path);
         }
     }
+    else
+    if(type == S_IFREG) {
+        logprintf(LOG_WARN, "TODO: Check if file cant be accessed.");
+
+        Buffer* new_buffer = add_new_buffer(selected_finfo->name, IMODE_INSERT, BUFFER_NO_FLAGS);
+        buffer_read_file(new_buffer, selected_finfo->full_path);
+    }
+
+    /*if((selected_finfo->sb.st_mode & S_IFMT) == S_IFDIR) {
+        if(nmt_module_chdir_abs(this_module, selected_finfo->full_path)) {
+            p_list_files(buf);
+        }
+        else {
+            logprintf(LOG_ERROR, "(textmode.so) Failed to access directory '%s'", 
+                    selected_finfo->full_path);
+        }
+    }
+    */
 
 }
 
