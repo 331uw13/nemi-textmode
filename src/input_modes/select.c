@@ -7,12 +7,10 @@
 void imode_SELECT_keypress(Buffer* buf, int key, int mods) {
     TXModest* txmst = get_txmst();
 
-
     if(imode_basic_cursor_movement(buf, key, mods)) {
         nmt_select_move(&buf->select, buf->cursor_col, buf->cursor_row);
         return;
     }
-
 
     switch(key) {
         case GLFW_KEY_N:
@@ -27,7 +25,6 @@ void imode_SELECT_keypress(Buffer* buf, int key, int mods) {
             buf->select.mode = SREG_MODE_LINE;
             break;
     }
-
 }
 
 
@@ -35,4 +32,3 @@ void imode_SELECT_chrpress(Buffer* buf, char c) {
     TXModest* txmst = get_txmst();
 
 }
-

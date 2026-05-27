@@ -542,6 +542,10 @@ void buffer_save_file(Buffer* buf) {
 
 
 void buffer_select_render_callback(void* userptr, ssize_t row, ssize_t row_length, ssize_t col_begin) {
+    if(row_length <= 0) {
+        row_length = 1;
+    }
+
     Nemi* nemi = nmt_getst();
     Buffer* buf = (Buffer*)userptr;
 

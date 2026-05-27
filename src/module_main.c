@@ -68,6 +68,7 @@ bool p_mouse_on_box(Nemi* nemi, Buffer* buf, int row, int col, int width_cols, i
 */
 
 
+// This function is for select region callback.
 static
 size_t p_select_callback_buffer_get_row_length(void* user_pointer, ssize_t row) {
     Buffer* buf = (Buffer*)user_pointer;
@@ -150,6 +151,7 @@ void module_event_render() {
     else {
         
     }
+
 
     if(txmst->buffer->input_mode == IMODE_SELECT) {
         nmt_select_process
@@ -237,7 +239,6 @@ void module_event_render() {
 
 
     if(buffer_title_len > 0) {
-
         leaf_set_font_color(&nemi->font, (RGBColor){ 150, 120, 180 });
         leaf_draw_text
         (
