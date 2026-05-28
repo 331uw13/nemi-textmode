@@ -14,9 +14,25 @@
 #define BUFFER_IMODE_CANT_CHANGE (1 << 3) // Buffer input mode cant be changed with user keypress event.
 
 
+typedef int bufuid_t;
+
+
+typedef struct BufferStatusName_t {
+    char*    name_ptr;
+    ssize_t  name_len;
+    ssize_t  name_len_original;
+    float    scroll_timer_sec;
+    float    scroll_timer_delay_restart_sec;
+}
+BufferStatusName;
+
+
 typedef struct Buffer_t {
     size_t   index;
     uint64_t flags;
+    bufuid_t uid; // Used for undo stack operations to identify the buffer.
+    BufferStatusName status_name;
+
     char*    name;
     char*    opened_file_path;
     Bufrow*  rows_head;
@@ -50,6 +66,22 @@ typedef struct Buffer_t {
     void*         user_pointer; // Mainly reserved for custom input modes.
 }
 Buffer;
+
+typedef struct BufferID_t {
+    bufuid_t buffer_uid;
+    size_t   buffer_index;
+}
+BufferID;
+
+inline BufferID buffer_getid(Buffer* buf) {
+    return (BufferID) {
+        .buffer_uid = buf->uid,
+        .buffer_index = buf->index
+    };
+}
+
+
+
 
 Buffer* buffer_init ();
 void    buffer_free (Buffer* buf);

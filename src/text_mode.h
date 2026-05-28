@@ -25,6 +25,8 @@ typedef struct TXModest_t {
     bool            cmd_line_enabled;
     ssize_t         cmd_line_cursor;
     struct string_t cmd_str;
+
+    struct string_t clipboard;
 }
 TXModest;
 
@@ -37,9 +39,7 @@ Buffer*   add_new_buffer   (char* name, InputMode initial_imode, uint64_t flags)
 void      delete_buffer    (Buffer* buf);
 void      switch_to_buffer (Buffer* buf);
 void      update_buffers();
-
-
-
+void      clean_all_buffers();
 
 
 #endif

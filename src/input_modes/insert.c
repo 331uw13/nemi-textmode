@@ -11,7 +11,6 @@ void imode_INSERT_keypress(Buffer* buf, int key, int mods) {
         return;
     }
     
-    TXModest* txmst = get_txmst();
     Bufrow* row = buffer_get_row(buf, buf->cursor_row);
     if(row == NULL) {
         return;
@@ -45,7 +44,6 @@ void imode_INSERT_chrpress(Buffer* buf, char c) {
         return;
     }
     
-    TXModest* txmst = get_txmst();
     Bufrow* row = buffer_get_row(buf, buf->cursor_row);
     if(row == NULL) {
         return;

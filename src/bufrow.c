@@ -25,8 +25,6 @@ void bufrow_free(Bufrow* row) {
     row->len = 0;
 }
 
-
-
 static
 void bufrow_prep_memory(Bufrow* row, size_t new_length) {
     if(row->memsize <= new_length) {

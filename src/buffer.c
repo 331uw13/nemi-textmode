@@ -132,8 +132,11 @@ void p_buffer_free_all_rows(Buffer* buf) {
     while(row) {
         Bufrow* prev = row->prev;
         
+        //asm("int3");
         bufrow_free(row);
-        if(row->next) {
+
+
+        if(row->next != NULL) {
             free(row->next);
         }
 
@@ -278,7 +281,7 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
         row->next->prev = row->prev;
     }
     else {
-        buf->rows_tail = row;
+        buf->rows_tail = row->prev;
     }
 
     if(row->prev) {
@@ -301,12 +304,14 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
 
     
     bufrow_free(row);
+    row->data = NULL;
+    row->len = 0;
 
-
+    free(row);
+    //printf("Row Data: %p\n", row->data);
 
     //validate_linked_list(buf);
-
-    printf("Remove %p  \033[33mTODO: Nodes may become fragmented.\033[0m\n", row);
+    //printf("Remove %p  \033[33mTODO: Nodes may become fragmented.\033[0m\n", row);
     buf->num_rows--;
 
     return true;

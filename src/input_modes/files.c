@@ -171,12 +171,9 @@ void p_list_files(Buffer* buf) {
 
         }
 
-        for(size_t i = type_str.len; i < indent; i++) {
+        for(ssize_t i = type_str.len; i < indent; i++) {
             bufrow_insert_char(row, type_str.len, ' ');
         }
-
-
-
     }
 }
 
@@ -193,7 +190,7 @@ void p_open_selected_file(Buffer* buf) {
         return;
     }
 
-    if(buf->cursor_row <= 0 || buf->cursor_row >= fg->num_files) {
+    if(buf->cursor_row <= 0 || buf->cursor_row >= (ssize_t)fg->num_files) {
         return;
     }
 
@@ -270,7 +267,7 @@ void imode_FILES_keypress(Buffer* buf, int key, int mods) {
 }
 
 void imode_FILES_chrpress(Buffer* buf, char c) {
-    TXModest* txmst = get_txmst();
-
+    (void)buf;
+    (void)c;
 
 }

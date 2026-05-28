@@ -76,100 +76,162 @@ size_t p_select_callback_buffer_get_row_length(void* user_pointer, ssize_t row) 
     return (bufrow == NULL) ? 0 : bufrow->len;
 }
 
+static
+int p_get_status_line_ypos(Nemi* nemi) {
+    return nmt_rowtoy(nemi, nemi->win_rows-1);
+}
 
-void module_event_render() {
-    Nemi* nemi = nmt_getst();
-    TXModest* txmst = get_txmst();
-    if(!txmst->enabled) {
-        return;
-    }
-
-
-
-    // NOTE: This needs to be organized later.
-
-    Buffer* buffer = txmst->buffer;
-
-    if(buffer == NULL) {
-        const char* message = "No buffer opened. Press <?> for help ...";
-
-
-        leaf_set_font_color(&nemi->font, (RGBColor){ 150, 150, 150 });
-        leaf_draw_text
-        (
-            &nemi->font,
-            10,
-            10,
-            message, 
-            strlen(message)
-        );
-        return;
-    }
-
-
-    int status_line_y = nmt_rowtoy(nemi, nemi->win_rows-1);
- 
-    // Status line box
+static
+void p_draw_status_line_box(Nemi* nemi, Buffer* buf) { 
+    int status_line_y = p_get_status_line_ypos(nemi);
     leaf_draw_rect
     (
         nmt_coltox(nemi, 0),
         status_line_y,
-        buffer->max_col * nemi->font.char_width,
+        buf->max_col * nemi->font.char_width,
         nemi->font.char_height + 2,
         (RGBColor) {
             13, 13, 13
         }
     );
+}
 
-    if(txmst->cmd_line_enabled) {
+static
+void p_draw_status_line_text(Nemi* nemi, Buffer* buf) { 
+    const int max_width = 14;
+    const int box_spacing = 10;
+    const bool scroll_max = true;
+    const float scroll_interval_sec = 0.15f;
+    const float scroll_delay_restart_sec = 0.3f;
 
-        // Cursor
-        int cursor_x = nmt_coltox(nemi, txmst->cmd_line_cursor);
+    const RGBColor active_box_color   = (RGBColor) { 32, 32, 32 };
+    const RGBColor deactive_box_color = (RGBColor) { 23, 23, 23 };
+
+    const RGBColor active_text_color   = (RGBColor) { 120, 120, 120 };
+    const RGBColor deactive_text_color = (RGBColor) { 80, 80, 80 };
+
+    int draw_x = nmt_coltox(nemi, 0);
+    int draw_y = p_get_status_line_ypos(nemi);
+
+    TXModest* txmst = get_txmst();
+
+
+    for(size_t i = 0; i < MAX_BUFFERS; i++) {
+        Buffer* iterbuf = txmst->buffers[i];
+        if(iterbuf == NULL) {
+            continue;
+        }
+
+
+        bool scroll_bufname = iterbuf->status_name.name_len_original > max_width;
+        if(scroll_bufname
+        && (iterbuf->status_name.scroll_timer_delay_restart_sec >= scroll_delay_restart_sec)) {
+
+            //iterbuf->status_name.name_len = max_width;
+            iterbuf->status_name.scroll_timer_sec += (float)nemi->frame_time;
+
+
+            bool reached_end = (iterbuf->status_name.name_len - 1 < max_width / 2);
+            bool allow_restart = (iterbuf->status_name.scroll_timer_delay_restart_sec >= scroll_delay_restart_sec * 2.0f);
+
+            if(iterbuf->status_name.scroll_timer_sec >= scroll_interval_sec) {
+                iterbuf->status_name.scroll_timer_sec = 0.0f;
+  
+                if(reached_end && allow_restart) {
+                    iterbuf->status_name.name_ptr = iterbuf->name;
+                    iterbuf->status_name.name_len = iterbuf->status_name.name_len_original;
+                    iterbuf->status_name.scroll_timer_delay_restart_sec = 0;
+                }
+                else
+                if(!reached_end) {
+                    iterbuf->status_name.name_ptr++;
+                    iterbuf->status_name.name_len--;
+                }
+
+            }
+           
+            if(reached_end && !allow_restart) {
+                iterbuf->status_name.scroll_timer_delay_restart_sec += (float)nemi->frame_time;
+            }
+
+            /*
+            if(reached_end) {
+                iterbuf->status_name.scroll_timer_delay_restart_sec += (float)nemi->frame_time;
+            }
+            */
+        }
+        else
+        if(scroll_bufname) {
+            iterbuf->status_name.scroll_timer_delay_restart_sec += (float)nemi->frame_time;
+        }
+        /*
+        else {
+            iterbuf->status_name.name_len = iterbuf->status_name.name_len;
+        }
+        */
+
 
         leaf_draw_rect
         (
-            cursor_x,
-            status_line_y,
-            nemi->font.char_width,
+            draw_x,
+            draw_y,
+            nemi->font.char_width * max_width,
             nemi->font.char_height,
-            (RGBColor) {
-                80, 20, 30
-            }
+            (iterbuf == buf) ? active_box_color : deactive_box_color
         );
 
+        leaf_set_font_color(&nemi->font,
+                (iterbuf == buf) ? active_text_color : deactive_text_color);
 
-        leaf_set_font_color(&nemi->font, (RGBColor){ 130, 50, 80 });
         leaf_draw_text
         (
             &nemi->font,
-            nmt_coltox(nemi, 0),
-            status_line_y,
-            txmst->cmd_str.bytes, 
-            txmst->cmd_str.size
+            draw_x,
+            draw_y,
+            iterbuf->status_name.name_ptr, 
+            MIN_VALUE(iterbuf->status_name.name_len, max_width)
         );
-    }
-    else {
-        
-    }
 
 
-    if(txmst->buffer->input_mode == IMODE_SELECT) {
-        nmt_select_process
-        (
-            txmst->buffer->select,
-            p_select_callback_buffer_get_row_length,
-            buffer_select_render_callback,
-            (void*)txmst->buffer // user pointer.
-        );
+
+        draw_x += max_width * nemi->font.char_width + box_spacing;
     }
+}
+
+
+static
+void p_draw_cmd_line(Nemi* nemi, TXModest* txmst) {
+    int status_line_y = p_get_status_line_ypos(nemi);
 
     // Cursor
-    int cursor_x = nmt_coltox(nemi, 
-            buffer->cursor_col + buffer->col_offset);
+    int cursor_x = nmt_coltox(nemi, txmst->cmd_line_cursor);
+    leaf_draw_rect
+    (
+        cursor_x,
+        status_line_y,
+        nemi->font.char_width,
+        nemi->font.char_height,
+        (RGBColor) {
+            80, 20, 30
+        }
+    );
 
-    int cursor_y = nmt_rowtoy(nemi, 
-            buffer->cursor_row + buffer->row_offset - buffer->yscroll);
 
+    leaf_set_font_color(&nemi->font, (RGBColor){ 130, 50, 80 });
+    leaf_draw_text
+    (
+        &nemi->font,
+        nmt_coltox(nemi, 0),
+        status_line_y,
+        txmst->cmd_str.bytes, 
+        txmst->cmd_str.size
+    );
+}
+
+static
+void p_draw_buffer_cursor(Nemi* nemi, Buffer* buf) {
+    int cursor_x = nmt_coltox(nemi, buf->cursor_col + buf->col_offset);
+    int cursor_y = nmt_rowtoy(nemi, buf->cursor_row + buf->row_offset - buf->yscroll);
     leaf_draw_rect
     (
         cursor_x,
@@ -180,36 +242,36 @@ void module_event_render() {
             10, 60, 60
         }
     );
+}
 
-    // Buffer title box.
+static
+void p_draw_buffer_title_box(Nemi* nemi, Buffer* buf) {
     leaf_draw_rect
     (
         nmt_coltox(nemi, 0),
         nmt_rowtoy(nemi, 0),
-        buffer->max_col * nemi->font.char_width,
+        buf->max_col * nemi->font.char_width,
         nemi->font.char_height + 2,
         (RGBColor) {
             20, 20, 20
         }
     );
+}
 
-
-    // Title.
-
-    char buffer_title[32] = {0};
+static
+void p_draw_buffer_title_text(Nemi* nemi, Buffer* buf) {
+    char buffer_title[256] = {0};
     ssize_t buffer_title_len = 0;
-    const char* buffer_name = buffer->name == NULL ? "" : buffer->name;
+    const char* buffer_name = buf->name == NULL ? "" : buf->name;
 
-
-
-    switch(buffer->input_mode) {
+    switch(buf->input_mode) {
     
         case IMODE_INSERT:
             buffer_title_len 
                 = snprintf(buffer_title, sizeof(buffer_title)-1,
                     "%s%s", 
                     buffer_name,
-                    (buffer->flags & BUFFER_NO_MODE_IN_TITLE) ? "" : " [insert]");
+                    (buf->flags & BUFFER_NO_MODE_IN_TITLE) ? "" : " [insert]");
             break;
 
         case IMODE_VIEW:
@@ -217,7 +279,7 @@ void module_event_render() {
                 = snprintf(buffer_title, sizeof(buffer_title)-1,
                     "%s%s", 
                     buffer_name,
-                    (buffer->flags & BUFFER_NO_MODE_IN_TITLE) ? "" : " [view]");
+                    (buf->flags & BUFFER_NO_MODE_IN_TITLE) ? "" : " [view]");
             break;
 
 
@@ -226,7 +288,7 @@ void module_event_render() {
                 = snprintf(buffer_title, sizeof(buffer_title)-1,
                     "%s%s", 
                     buffer_name,
-                    (buffer->flags & BUFFER_NO_MODE_IN_TITLE) ? "" : " [select]");
+                    (buf->flags & BUFFER_NO_MODE_IN_TITLE) ? "" : " [select]");
             break;
 
 
@@ -248,8 +310,61 @@ void module_event_render() {
             buffer_title, buffer_title_len
         );
     }
+ 
+}
+
+void module_event_render() {
+    Nemi* nemi = nmt_getst();
+    TXModest* txmst = get_txmst();
+    if(!txmst->enabled) {
+        return;
+    }
+
     
-    
+    Buffer* buf = txmst->buffer;
+
+
+    if(buf == NULL) {
+        char* message = "No buffer opened. Press <?> for help ...";
+        leaf_set_font_color(&nemi->font, (RGBColor){ 150, 150, 150 });
+        leaf_draw_text
+        (
+            &nemi->font,
+            10,
+            10,
+            message, 
+            strlen(message)
+        );
+        return;
+    }
+
+
+    p_draw_status_line_box(nemi, buf);
+
+    if(txmst->cmd_line_enabled) {
+        p_draw_cmd_line(nemi, txmst);
+    }
+    else {
+        p_draw_status_line_text(nemi, buf);
+    }
+
+
+    // Initiate select region draw.
+    if(txmst->buffer->input_mode == IMODE_SELECT) {
+        nmt_select_process
+        (
+            txmst->buffer->select,
+            p_select_callback_buffer_get_row_length,
+            buffer_select_render_callback,
+            (void*)txmst->buffer // user pointer.
+        );
+    }
+
+
+    p_draw_buffer_cursor(nemi, buf);
+    p_draw_buffer_title_box(nemi, buf);
+    p_draw_buffer_title_text(nemi, buf);
+   
     if(txmst->update_buffers) {
         update_buffers();
     }
@@ -317,13 +432,13 @@ void module_event_char_input(char ch) {
 void module_event_window_resized() {
     TXModest* txmst = get_txmst();
     for(size_t i = 0; i < MAX_BUFFERS; i++) {
-        Buffer* buffer = txmst->buffers[i];
-        if(buffer == NULL) {
+        Buffer* buf = txmst->buffers[i];
+        if(buf == NULL) {
             continue;
         }
 
-        buffer->max_row = txmst->term->rows;
-        buffer->max_col = txmst->term->cols;
+        buf->max_row = txmst->term->rows;
+        buf->max_col = txmst->term->cols;
     }
 }
 
@@ -356,7 +471,6 @@ void kb_open_file_browsing() {
     if(!txmst->enabled) {
         return;
     }
-
 
     add_new_buffer("files", IMODE_FILES, BUFFER_IMODE_CANT_CHANGE);
 }
@@ -479,8 +593,8 @@ void module_loaded(size_t module_idx) {
         .buffer_chrpress = imode_FILES_chrpress
     };
     
-    //add_new_buffer("files", IMODE_FILES, BUFFER_IMODE_CANT_CHANGE);
-    add_new_buffer("test", IMODE_INSERT, BUFFER_NO_FLAGS);
+    add_new_buffer("files", IMODE_FILES, BUFFER_IMODE_CANT_CHANGE);
+    //add_new_buffer("test", IMODE_INSERT, BUFFER_NO_FLAGS);
 
     nmt_assign_module_keybind
     (

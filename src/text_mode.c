@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 
+
 static TXModest* g_txmst = NULL;
 
 
@@ -24,6 +25,7 @@ void create_txmst() {
 
     g_txmst->buffer = NULL;
     g_txmst->buffer_prev = NULL;
+    g_txmst->clipboard = string_create(0);
     g_txmst->cmd_str = string_create(0);
     g_txmst->cmd_line_enabled = false;
     g_txmst->cmd_line_cursor = 0;
@@ -40,6 +42,7 @@ void free_txmst() {
     }
 
     free_string(&g_txmst->cmd_str);
+    free_string(&g_txmst->clipboard);
     free(g_txmst);
 }
 
@@ -47,7 +50,31 @@ TXModest* get_txmst() {
     return g_txmst;
 }
 
+static
+bufuid_t p_get_buffer_uid() {
+    bufuid_t uid = 0;
 
+    bool is_unique = false;
+    while(!is_unique) {
+
+        uid = rand();
+
+        // Assume the identifier is unique but confirm.
+        is_unique = true;
+        for(size_t i = 0; i < MAX_BUFFERS; i++) {
+            if(g_txmst->buffers[i] == NULL) {
+                continue;
+            }
+
+            if(g_txmst->buffers[i].uid == uid) {
+                is_unique = false;
+                break;
+            }
+        }
+    }
+
+    return uid;
+}
 
 Buffer* add_new_buffer(char* name, InputMode initial_imode, uint64_t flags) {
     Buffer* buf = NULL;
@@ -64,10 +91,20 @@ Buffer* add_new_buffer(char* name, InputMode initial_imode, uint64_t flags) {
 
 
     if(buf != NULL) {
+        buf->uid = p_get_buffer_uid();
         buf->name = strdup(name);
         buf->flags = flags;
         buf->input_mode = initial_imode;
-   
+
+        size_t buf_name_len = strlen(buf->name);
+  
+        buf->status_name = (BufferStatusName) {
+            .name_ptr          = buf->name,
+            .name_len          = buf_name_len,
+            .name_len_original = buf_name_len,
+            .scroll_timer_sec               = 0.0f,
+            .scroll_timer_delay_restart_sec = 0.0f,
+        };
 
         IModeCallbacks* imode_calls = &g_txmst->imode_callbacks[initial_imode];
         if(imode_calls->buffer_added) {
@@ -78,6 +115,18 @@ Buffer* add_new_buffer(char* name, InputMode initial_imode, uint64_t flags) {
     }
 
     return buf;
+}
+
+void clean_all_buffers() {
+    for(size_t i = 0; i < MAX_BUFFERS; i++) {
+        if(g_txmst->buffers[i] == NULL) {
+            continue;
+        }
+
+        buffer_clean_visible_rows(g_txmst->buffers[i]);
+    }
+   
+    g_txmst->update_buffers = true;
 }
 
 void delete_buffer(Buffer* buf) {
@@ -94,15 +143,7 @@ void delete_buffer(Buffer* buf) {
     buffer_free(buf);
     g_txmst->buffers[index] = NULL;
 
-
-    for(size_t i = 0; i < MAX_BUFFERS; i++) {
-        if(g_txmst->buffers[i] == NULL) {
-            continue;
-        }
-
-        buffer_clean_visible_rows(g_txmst->buffers[i]);
-    }
-
+    clean_all_buffers();
 
     if(was_active_buffer) {
         g_txmst->buffer = NULL;

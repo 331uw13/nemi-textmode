@@ -12,8 +12,9 @@ void handle_cmd_line_chrpress(char c) {
 }
 
 void handle_cmd_line_keypress(int key, int mods) {
+    (void)mods;
+    
     TXModest* txmst = get_txmst();
-
     switch(key) {
 
         case GLFW_KEY_LEFT:
@@ -23,7 +24,7 @@ void handle_cmd_line_keypress(int key, int mods) {
             break;
 
         case GLFW_KEY_RIGHT:
-            if(txmst->cmd_line_cursor+1 <= txmst->cmd_str.size) {
+            if(txmst->cmd_line_cursor+1 <= (ssize_t)txmst->cmd_str.size) {
                 txmst->cmd_line_cursor++;
             }
             break;
