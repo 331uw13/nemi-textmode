@@ -555,6 +555,13 @@ void kb_cmd_line_open() {
 }
 
 
+// NOTE: temporary function-
+static
+void p_append_bufrow(Buffer* buf, char* data) {
+    Bufrow* row = buffer_insert_row(buf, buf->num_rows);
+    bufrow_set(row, data, strlen(data));
+}
+
 
 void module_loaded(size_t module_idx) {
     create_txmst();
@@ -592,9 +599,39 @@ void module_loaded(size_t module_idx) {
         .buffer_keypress = imode_FILES_keypress,
         .buffer_chrpress = imode_FILES_chrpress
     };
-    
-    add_new_buffer("files", IMODE_FILES, BUFFER_IMODE_CANT_CHANGE);
-    //add_new_buffer("test", IMODE_INSERT, BUFFER_NO_FLAGS);
+
+    //add_new_buffer("files", IMODE_FILES, BUFFER_IMODE_CANT_CHANGE);
+    Buffer* test = add_new_buffer("test", IMODE_INSERT, BUFFER_NO_FLAGS);
+    test->undostack.flags |= UNDOSTACK_IGNORE_PUSH;
+    p_append_bufrow(test, "Lorem ipsum dolor sit amet, consectetur adipiscing elit.");
+    p_append_bufrow(test, "Vestibulum viverra felis ac metus finibus iaculis.");
+    p_append_bufrow(test, "");
+    p_append_bufrow(test, "");
+    p_append_bufrow(test, "Curabitur dictum ante magna, id semper massa rhoncus ut.");
+    p_append_bufrow(test, "Maecenas ac eros dui. Phasellus quis augue porta, tincidunt ligula in,");
+    p_append_bufrow(test, "tempus metus. Integer et rutrum velit. Nulla facilisi.");
+    p_append_bufrow(test, "Duis elementum felis vestibulum, vestibulum est sed,");
+    p_append_bufrow(test, "eleifend ipsum. Etiam varius felis tempor, iaculis purus et,");
+    p_append_bufrow(test, "sagittis nibh. Vestibulum sapien urna,");
+    p_append_bufrow(test, "varius et dolor bibendum");
+    p_append_bufrow(test, "rutrum posuere sapien");
+    p_append_bufrow(test, "");
+    p_append_bufrow(test, "Nullam in metus odio.");
+    p_append_bufrow(test, "Nunc ac commodo elit");
+    p_append_bufrow(test, "");
+    p_append_bufrow(test, "vel rutrum ligula.  Fusce ultrices lacus aliquet");
+    p_append_bufrow(test, "eros pulvinar commodo.");
+    p_append_bufrow(test, "Suspendisse potenti.");
+    p_append_bufrow(test, "Integer consequat nisiquis posuere consectetur.");
+    p_append_bufrow(test, "Duis semper commodo magna.");
+    p_append_bufrow(test, "");
+    p_append_bufrow(test, "");
+    p_append_bufrow(test, "Nullam at arcu ut quam pharetra molestie.");
+    p_append_bufrow(test, "Etiam egestas interdum nisl");
+    p_append_bufrow(test, "eget placerat libero");
+    p_append_bufrow(test, "Morbi facilisis leo eget ex fermentum consectetur");
+    p_append_bufrow(test, "Sed molestie vehicula diam dignissim imperdiet");
+    test->undostack.flags &= ~UNDOSTACK_IGNORE_PUSH;
 
     nmt_assign_module_keybind
     (

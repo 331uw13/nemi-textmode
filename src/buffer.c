@@ -95,7 +95,7 @@ void validate_linked_list(Buffer* buf) {
 Buffer* buffer_init() {
     Buffer* buf = malloc(sizeof *buf);
     buf->rows = malloc(sizeof *buf->rows);
-    bufrow_allocate(&buf->rows[0]);
+    bufrow_allocate(&buf->rows[0], buf);
     buf->rows_head = &buf->rows[0];
     buf->rows_tail = &buf->rows[0];
     buf->flags = 0;
@@ -117,6 +117,7 @@ Buffer* buffer_init() {
     buf->max_row = txmst->term->rows;
     buf->max_col = txmst->term->cols;
 
+    buf->undostack = undostack_init();
 
     //buffer_insert_row(buf, 0);
 
@@ -167,9 +168,12 @@ void buffer_move_cursor_to(Buffer* buf, ssize_t row, ssize_t col) {
         return;
     }
     
-    bool moved_up   = buf->cursor_row > row;
-    bool moved_down = buf->cursor_row < row;
+    const bool moved_up   = buf->cursor_row > row;
+    const bool moved_down = buf->cursor_row < row;
 
+    // Save for undostack.
+    const ssize_t cursor_row_old = buf->cursor_row;
+    const ssize_t cursor_col_old = buf->cursor_col;
 
     buf->cursor_row = row;
     buf->cursor_col = col;
@@ -202,17 +206,17 @@ void buffer_move_cursor_to(Buffer* buf, ssize_t row, ssize_t col) {
             buffer_yscroll_to(buf, buf->cursor_row);
         }
     }
-    /*
-    if(buf->cursor_row >= buffer_real_max_row(buf)) {
-        buffer_yscroll(buf, 1);
-    }
-    */
-    
-    /*else
-    if(buf->cursor_row <= buf->yscroll) {
-        buffer_yscroll(buf, -1);
-    }
-    */
+
+
+    undostack_push(&buf->undostack,
+    (UndoStackCmd) {
+        .kind = UCMD_CURSOR_MOVED,
+        .location = (UndoStackCmdLocation) {
+            .buf_id = buffer_getid(buf),
+            .row = cursor_row_old,
+            .col = cursor_col_old
+        }
+    });
 }
 
 void buffer_move_cursor(Buffer* buf, int row_offset, int col_offset) {
@@ -233,6 +237,20 @@ void buffer_yscroll(Buffer* buf, int offset) {
     buffer_yscroll_to(buf, buf->yscroll + offset);
 }
 
+
+static
+void p_buffer_fix_row_numbers(Buffer* buf, size_t position) {
+    Bufrow* row = buffer_get_row(buf, position);
+    if(row == NULL) {
+        return;
+    }
+
+    while(row) {
+        row->number = (row->prev == NULL) ? 0 : (row->prev->number + 1);
+        row = row->next;
+    }
+}
+
 Bufrow* buffer_insert_row(Buffer* buf, size_t position) {
     Bufrow* row = buffer_get_row(buf, position);
     if(row == NULL) {
@@ -240,7 +258,7 @@ Bufrow* buffer_insert_row(Buffer* buf, size_t position) {
     }
 
     Bufrow* new_row = malloc(sizeof(Bufrow));
-    bufrow_allocate(new_row);
+    bufrow_allocate(new_row, buf);
 
     new_row->prev = row;
     new_row->next = row->next;
@@ -251,7 +269,6 @@ Bufrow* buffer_insert_row(Buffer* buf, size_t position) {
 
     row->next = new_row;
 
-
     bool at_tail = row == buf->rows_tail;
     if(at_tail) {
         buf->rows_tail = new_row;
@@ -259,6 +276,8 @@ Bufrow* buffer_insert_row(Buffer* buf, size_t position) {
 
     buf->num_rows++;
 
+    p_buffer_fix_row_numbers(buf, position);
+    
     //validate_linked_list(buf);
     //buf->num_row_nodes++;
     return new_row;
@@ -314,6 +333,7 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
     //printf("Remove %p  \033[33mTODO: Nodes may become fragmented.\033[0m\n", row);
     buf->num_rows--;
 
+    p_buffer_fix_row_numbers(buf, position);
     return true;
 }
 
@@ -322,7 +342,7 @@ void buffer_delete_all_rows(Buffer* buf) {
     p_buffer_free_all_rows(buf);
     
     buf->rows = malloc(sizeof *buf->rows);
-    bufrow_allocate(&buf->rows[0]);
+    bufrow_allocate(&buf->rows[0], buf);
     buf->rows_head = &buf->rows[0];
     buf->rows_tail = &buf->rows[0];
     
@@ -453,7 +473,7 @@ void buffer_write_to_terminal(Buffer* buf) {
             if(!(buf->flags & BUFFER_NO_NUMBER)) {
                 ssize_t row_number = row_counter + buf->yscroll;
                 ssize_t linenum_buf_len 
-                    = snprintf(linenum_buf, sizeof(linenum_buf)-1, "\033[90m%li\033[0m", row_number);
+                    = snprintf(linenum_buf, sizeof(linenum_buf)-1, "\033[90m%li\033[0m", row->number);
 
                 nmterm_mv_putstrn
                 (

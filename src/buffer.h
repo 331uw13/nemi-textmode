@@ -5,6 +5,7 @@
 #include "bufrow.h"
 #include "select_region.h"
 #include "input_modes.h"
+#include "undo.h"
 
 
 #define BUFFER_NO_FLAGS 0
@@ -55,6 +56,7 @@ typedef struct Buffer_t {
     int     max_col;
     
     NSelectRegion  select;
+    UndoStack      undostack;
 
     struct {
         int tab_width_in;  // Tab width in editor.

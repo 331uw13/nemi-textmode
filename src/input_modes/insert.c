@@ -21,6 +21,15 @@ void imode_INSERT_keypress(Buffer* buf, int key, int mods) {
     }
 
     switch(key) {
+
+        case GLFW_KEY_Z:
+            if(mods & GLFW_MOD_CONTROL) {
+                if(!undostack_isempty(&buf->undostack)) {
+                    undostack_execute(undostack_pop(&buf->undostack));
+                }
+            }
+            break;
+
         case GLFW_KEY_ENTER:
             buffer_eventkey_enter(buf, row);
             break;

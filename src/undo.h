@@ -6,6 +6,7 @@
 
 
 typedef enum UndoStackCmdKind_e {
+    UCMD_CURSOR_MOVED,
     UCMD_INSERT_CHAR,
     UCMD_DELETE_CHAR,
     UCMD_INSERT_ROW,
@@ -39,17 +40,26 @@ typedef struct UndoStack_t {
     UndoStackCmd* commands;
     size_t commands_count;
     size_t commands_alloc;
+    int    flags;
 }
 UndoStack;
 
 
+// If set, 'undostack_push()' dont have any effect.
+// This is used for 'undostack_execute()' 
+// to now push the actions back to the same undo stack.
+#define UNDOSTACK_IGNORE_PUSH (1 << 0)
 
-UndoStack  undobuffer_init();
-void       undobuffer_free(UndoStack* ub);
 
-void       undobuffer_push(UndoStack* ub, UndoStackCmd cmd);
-UndoStackCmd  undobuffer_pop(UndoStack* ub);
 
+UndoStack  undostack_init();
+void       undostack_free(UndoStack* ub);
+
+bool          undostack_isempty(UndoStack* ub);
+void          undostack_push(UndoStack* ub, UndoStackCmd cmd);
+UndoStackCmd  undostack_pop(UndoStack* ub);
+
+void          undostack_execute(UndoStackCmd cmd);
 
 
 #endif

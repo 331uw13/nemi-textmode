@@ -1,20 +1,23 @@
-#include "bufrow.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "bufrow.h"
+#include "buffer.h"
 
 
 #define MEMSIZE_INCREASE_AMOUNT 64
 
 
-void bufrow_allocate(Bufrow* row) {
+void bufrow_allocate(Bufrow* row, Buffer* parent) {
     row->data = calloc(64, sizeof *row->data);
     row->prev = NULL;
     row->next = NULL;
     row->len = 0;
     row->memsize = 0;
     row->dirty = true;
+    row->parent_buffer = parent;
+    row->number = 0;
 }
 
 void bufrow_free(Bufrow* row) {
@@ -49,6 +52,17 @@ void bufrow_insert_char(Bufrow* row, ssize_t position, char c) {
     row->data[position] = c;
     row->len++;
     row->dirty = true;
+
+
+    undostack_push(&row->parent_buffer->undostack,
+    (UndoStackCmd) {
+        .kind = UCMD_INSERT_CHAR,
+        .location = (UndoStackCmdLocation) {
+            .buf_id = buffer_getid(row->parent_buffer),
+            .row = row->number,
+            .col = position
+        }
+    });
 }
 
 void bufrow_delete_char(Bufrow* row, ssize_t position) {
@@ -60,12 +74,26 @@ void bufrow_delete_char(Bufrow* row, ssize_t position) {
         return;
     }
 
+    const char deleted_char = row->data[position];
+
     for(ssize_t i = position; i < (ssize_t)row->len-1; i++) {
         row->data[i] = row->data[i+1];
     }
 
     row->len--;
     row->dirty = true;
+
+
+    undostack_push(&row->parent_buffer->undostack,
+    (UndoStackCmd) {
+        .kind = UCMD_DELETE_CHAR,
+        .location = (UndoStackCmdLocation) {
+            .buf_id = buffer_getid(row->parent_buffer),
+            .row = row->number,
+            .col = position
+        },
+        .data_as.character = deleted_char
+    });
 }
 
 

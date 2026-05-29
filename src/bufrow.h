@@ -4,6 +4,8 @@
 #include "types.h"
 
 
+typedef struct Buffer_t Buffer;
+
 typedef struct Bufrow_t {
     char* data;
     size_t len;
@@ -11,7 +13,9 @@ typedef struct Bufrow_t {
 
     struct Bufrow_t* prev;
     struct Bufrow_t* next;
+    Buffer* parent_buffer;
 
+    size_t number; // The actual row number.
     bool dirty; // If set to 'true', the whole row is cleared before writing to terminal.
 }
 Bufrow;
@@ -23,7 +27,7 @@ typedef struct BufrowSubstr_t {
 BufrowSubstr;
 
 
-void bufrow_allocate   (Bufrow* row);
+void bufrow_allocate   (Bufrow* row, Buffer* parent);
 void bufrow_free       (Bufrow* row);
 
 void bufrow_insert_char   (Bufrow* row, ssize_t position, char c);
