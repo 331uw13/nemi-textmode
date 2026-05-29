@@ -66,7 +66,7 @@ bufuid_t p_get_buffer_uid() {
                 continue;
             }
 
-            if(g_txmst->buffers[i].uid == uid) {
+            if(g_txmst->buffers[i]->uid == uid) {
                 is_unique = false;
                 break;
             }

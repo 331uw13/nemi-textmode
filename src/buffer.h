@@ -67,21 +67,6 @@ typedef struct Buffer_t {
 }
 Buffer;
 
-typedef struct BufferID_t {
-    bufuid_t buffer_uid;
-    size_t   buffer_index;
-}
-BufferID;
-
-inline BufferID buffer_getid(Buffer* buf) {
-    return (BufferID) {
-        .buffer_uid = buf->uid,
-        .buffer_index = buf->index
-    };
-}
-
-
-
 
 Buffer* buffer_init ();
 void    buffer_free (Buffer* buf);

@@ -10,10 +10,10 @@ UndoStack undobuffer_init() {
 void undobuffer_free(UndoStack* ub) {
 }
 
-void undobuffer_push(UndoStack* ub, Ucmd cmd) {
+void undobuffer_push(UndoStack* ub, UndoStackCmd cmd) {
 }
 
-UndoStack undobuffer_pop(UndoStack* ub) {
+UndoStackCmd undobuffer_pop(UndoStack* ub) {
 }
 
 
