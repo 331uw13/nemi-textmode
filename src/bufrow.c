@@ -48,6 +48,7 @@ char* bufrow_datadup(Bufrow* row) {
     }
 
     char* d = malloc(row->len + 1);
+    memcpy(d, row->data, row->len);
     d[row->len] = '\0';
 
     return d;

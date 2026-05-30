@@ -296,9 +296,10 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
     }
     
     // Save for undostack.
-    size_t row_number = row->number;
-    char* row_data
-         = (buf->undostack.flags & UNDOSTACK_IGNORE_PUSH) ? NULL : bufrow_datadup(row);
+    size_t row_number   = row->number;
+    size_t row_data_len = row->len;
+    char* row_data      = bufrow_datadup(row); 
+
 
     if(row->next) {
         row->next->prev = row->prev;
@@ -348,7 +349,8 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
             .row = row_number,
             .col = 0
         },
-        .data_as.char_array = row_data
+        .data_as.char_array = row_data,
+        .data_len = row_data_len
     });
 
 

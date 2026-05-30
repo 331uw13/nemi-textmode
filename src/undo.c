@@ -234,9 +234,8 @@ void p_undostack_execute_cmd(UndoStackCmd cmd) {
 
         case UCMD_DELETE_ROW:
             {
-                Bufrow* row = buffer_insert_row(buf, cmd.location.row + 1);
-                if(cmd.data_as.char_array != NULL) {
-                    logprintf(LOG_INFO, "<bufrow_set>");
+                Bufrow* row = buffer_insert_row(buf, cmd.location.row - 1);
+                if(row != NULL && cmd.data_as.char_array != NULL) {
                     bufrow_set(row, cmd.data_as.char_array, cmd.data_len);
                 }
             }
