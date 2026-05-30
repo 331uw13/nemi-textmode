@@ -24,9 +24,7 @@ void imode_INSERT_keypress(Buffer* buf, int key, int mods) {
 
         case GLFW_KEY_Z:
             if(mods & GLFW_MOD_CONTROL) {
-                if(!undostack_isempty(&buf->undostack)) {
-                    undostack_execute(undostack_pop(&buf->undostack));
-                }
+                undostack_pop_and_exec_group(&buf->undostack);
             }
             break;
 

@@ -6,28 +6,113 @@
 #include "text_mode.h"
 #include "nemi.h"
 
-#define UBCOMMANDS_ALLOC_MORE 64
 
 
 UndoStack undostack_init() {
     return (UndoStack) {
-        .commands = NULL,
-        .commands_count = 0,
-        .commands_alloc = 0,
+        .cmd_groups = NULL,
+        .cmd_groups_count = 0,
+        .cmd_groups_alloc = 0,
         .flags = 0
     };
 }
 
-void undostack_free(UndoStack* ub) {
-    if(ub->commands != NULL) {
-        free(ub->commands);
+
+static
+UndoStackCmdGroup* p_add_cmd_group(UndoStack* ub) {
+    if(ub->cmd_groups_count + 1 >= ub->cmd_groups_alloc) {
+        ub->cmd_groups_alloc = ub->cmd_groups_count + 64;
+        ub->cmd_groups 
+            = realloc
+            (
+                ub->cmd_groups,
+                ub->cmd_groups_alloc * sizeof *ub->cmd_groups
+            );
     }
+
+    UndoStackCmdGroup* group = &ub->cmd_groups[ ub->cmd_groups_count ];
+    ub->cmd_groups_count++;
+
+    group->commands = NULL;
+    group->commands_count = 0;
+    group->commands_alloc = 0;
+
+    return group;
+}
+
+static
+void p_free_cmd_group(UndoStackCmdGroup* group) {
+
+    // TODO: Need to free cmd.data_as.char_array (sometimes)
+
+    free(group->commands);
+}
+
+
+void undostack_free(UndoStack* ub) {
 }
 
 bool undostack_isempty(UndoStack* ub) {
-    return (ub->commands == NULL || ub->commands_count == 0);
+    return true;
 }
 
+void undostack_push(UndoStack* ub, UndoStackCmd cmd) {
+    if(ub->flags & UNDOSTACK_IGNORE_PUSH) {
+        return;
+    }
+
+
+    UndoStackCmdGroup* group = NULL;
+
+    if(ub->cmd_groups == NULL || ub->cmd_groups_count == 0) {
+        group = p_add_cmd_group(ub);
+    }
+    else {
+        group = &ub->cmd_groups[ ub->cmd_groups_count - 1 ];
+    }
+
+
+    if(group->commands_count + 1 >= group->commands_alloc) {
+        group->commands_alloc = group->commands_count + 32;
+        group->commands
+            = realloc
+            (
+                group->commands,
+                group->commands_alloc * sizeof *group->commands
+            );
+    }
+
+    group->commands[ group->commands_count ] = cmd;
+    group->commands_count++;
+}
+
+void undostack_start_new_group(UndoStack* ub) {
+    if(ub->cmd_groups_count == 0) {
+        return;
+    }
+
+    UndoStackCmdGroup* group = &ub->cmd_groups[ ub->cmd_groups_count - 1 ];
+    if(group->commands_count == 0) {
+        return;
+    }
+
+    p_add_cmd_group(ub);
+}
+
+void undostack_finish_group(UndoStack* ub) {
+    if(ub->cmd_groups_count == 0) {
+        return;
+    }
+
+    UndoStackCmdGroup* group = &ub->cmd_groups[ ub->cmd_groups_count - 1 ];
+    if(group->commands_count == 0) {
+        return;
+    }
+
+    p_add_cmd_group(ub);
+}
+
+/*
 void undostack_push(UndoStack* ub, UndoStackCmd cmd) {
     if(ub->flags & UNDOSTACK_IGNORE_PUSH) {
         return;
@@ -51,9 +136,11 @@ UndoStackCmd undostack_pop(UndoStack* ub) {
     ub->commands_count--;
     return ret_val;
 }
+*/
 
 
-void undostack_execute(UndoStackCmd cmd) {
+static
+void p_undostack_execute_cmd(UndoStackCmd cmd) {
 
     Buffer* buf = NULL;
     
@@ -85,8 +172,7 @@ void undostack_execute(UndoStackCmd cmd) {
         logprintf(LOG_ERROR, "Failed to find buffer while executing undo stack command.");
         return;
     }
-
-
+    
     // Set flag to ignore the undostack commands coming from the functions
     // which are used to execute the actions.
     buf->undostack.flags |= UNDOSTACK_IGNORE_PUSH;
@@ -94,7 +180,6 @@ void undostack_execute(UndoStackCmd cmd) {
     switch(cmd.kind) {
 
         case UCMD_CURSOR_MOVED:
-            logprintf(LOG_INFO, "(undostack) CURSOR_MOVED");
             {
                 buffer_move_cursor_to(buf,
                         cmd.location.row,
@@ -103,7 +188,6 @@ void undostack_execute(UndoStackCmd cmd) {
             break;
 
         case UCMD_INSERT_CHAR:
-            logprintf(LOG_INFO, "(undostack) INSERT_CHAR");
             {
                 Bufrow* row = buffer_get_row(buf, cmd.location.row);
                 bufrow_delete_char(row, cmd.location.col);
@@ -111,10 +195,50 @@ void undostack_execute(UndoStackCmd cmd) {
             break;
         
         case UCMD_DELETE_CHAR:
-            logprintf(LOG_INFO, "(undostack) DELETE_CHAR");
             {
                 Bufrow* row = buffer_get_row(buf, cmd.location.row);
                 bufrow_insert_char(row, cmd.location.col, cmd.data_as.character);
+            }
+            break;
+
+        case UCMD_INSERT_BLOCK:
+            {
+                Bufrow* row = buffer_get_row(buf, cmd.location.row);
+                bufrow_cut(row, cmd.location.col, cmd.data_len);
+            }
+            break;
+        
+        case UCMD_DELETE_BLOCK:
+            {
+                logprintf(LOG_INFO, "<insert block> %s", cmd.data_as.char_array);
+                Bufrow* row = buffer_get_row(buf, cmd.location.row);
+                bufrow_insert_substr
+                    (
+                        row,
+                        cmd.location.col,
+                        (BufrowSubstr) {
+                            .data_ptr = cmd.data_as.char_array,
+                            .len = cmd.data_len
+                        }
+                    );
+            }
+            break;
+
+        case UCMD_INSERT_ROW:
+            {
+                logprintf(LOG_INFO, "INSERT_ROW  <delete row> %li", cmd.location.row);
+                buffer_delete_row(buf, cmd.location.row);
+            }
+            break;
+
+
+        case UCMD_DELETE_ROW:
+            {
+                Bufrow* row = buffer_insert_row(buf, cmd.location.row + 1);
+                if(cmd.data_as.char_array != NULL) {
+                    logprintf(LOG_INFO, "<bufrow_set>");
+                    bufrow_set(row, cmd.data_as.char_array, cmd.data_len);
+                }
             }
             break;
 
@@ -123,6 +247,30 @@ void undostack_execute(UndoStackCmd cmd) {
             break;
     }
     
+    buffer_move_cursor_to(buf, cmd.location.row, cmd.location.col);
     buf->undostack.flags &= ~UNDOSTACK_IGNORE_PUSH;
 }
 
+void undostack_pop_and_exec_group(UndoStack* ub) {
+    if(ub->cmd_groups == NULL || ub->cmd_groups_count == 0) {
+        return;
+    }
+
+    UndoStackCmdGroup* group = &ub->cmd_groups[ ub->cmd_groups_count - 1 ];
+
+    /*
+    for(size_t i = 0; i < group->commands_count; i++) {
+        p_undostack_execute_cmd(group->commands[i]);
+    }
+    */
+   
+    // Go backwards because push is actually just appending.
+    for(ssize_t i = group->commands_count-1; i >= 0; i--) {
+        p_undostack_execute_cmd(group->commands[i]);
+    }
+
+    p_free_cmd_group(group);
+    group->commands = NULL;
+
+    ub->cmd_groups_count -= 1;
+}

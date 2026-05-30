@@ -9,6 +9,8 @@ typedef enum UndoStackCmdKind_e {
     UCMD_CURSOR_MOVED,
     UCMD_INSERT_CHAR,
     UCMD_DELETE_CHAR,
+    UCMD_INSERT_BLOCK,
+    UCMD_DELETE_BLOCK,
     UCMD_INSERT_ROW,
     UCMD_DELETE_ROW,
 }
@@ -32,15 +34,23 @@ typedef struct UndoStackCmd_t {
         char  character;
     }
     data_as;
+    size_t data_len;
 }
 UndoStackCmd;
 
 
+typedef struct UndoStackCmdGroup_t {
+    UndoStackCmd*      commands;
+    size_t             commands_count;
+    size_t             commands_alloc;
+}
+UndoStackCmdGroup;
+
 typedef struct UndoStack_t {
-    UndoStackCmd* commands;
-    size_t commands_count;
-    size_t commands_alloc;
-    int    flags;
+    UndoStackCmdGroup* cmd_groups;
+    size_t             cmd_groups_count;
+    size_t             cmd_groups_alloc;
+    int flags;
 }
 UndoStack;
 
@@ -55,11 +65,10 @@ UndoStack;
 UndoStack  undostack_init();
 void       undostack_free(UndoStack* ub);
 
-bool          undostack_isempty(UndoStack* ub);
-void          undostack_push(UndoStack* ub, UndoStackCmd cmd);
-UndoStackCmd  undostack_pop(UndoStack* ub);
-
-void          undostack_execute(UndoStackCmd cmd);
+void       undostack_start_new_group    (UndoStack* ub);
+void       undostack_finish_group       (UndoStack* ub);
+void       undostack_push               (UndoStack* ub, UndoStackCmd cmd);
+void       undostack_pop_and_exec_group (UndoStack* ub);
 
 
 #endif

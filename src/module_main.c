@@ -603,6 +603,10 @@ void module_loaded(size_t module_idx) {
     //add_new_buffer("files", IMODE_FILES, BUFFER_IMODE_CANT_CHANGE);
     Buffer* test = add_new_buffer("test", IMODE_INSERT, BUFFER_NO_FLAGS);
     test->undostack.flags |= UNDOSTACK_IGNORE_PUSH;
+    p_append_bufrow(test, "");
+    p_append_bufrow(test, "Hello World!");
+    p_append_bufrow(test, "");
+    p_append_bufrow(test, "");
     p_append_bufrow(test, "Lorem ipsum dolor sit amet, consectetur adipiscing elit.");
     p_append_bufrow(test, "Vestibulum viverra felis ac metus finibus iaculis.");
     p_append_bufrow(test, "");

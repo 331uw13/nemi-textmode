@@ -206,17 +206,6 @@ void buffer_move_cursor_to(Buffer* buf, ssize_t row, ssize_t col) {
             buffer_yscroll_to(buf, buf->cursor_row);
         }
     }
-
-
-    undostack_push(&buf->undostack,
-    (UndoStackCmd) {
-        .kind = UCMD_CURSOR_MOVED,
-        .location = (UndoStackCmdLocation) {
-            .buf_id = buffer_getid(buf),
-            .row = cursor_row_old,
-            .col = cursor_col_old
-        }
-    });
 }
 
 void buffer_move_cursor(Buffer* buf, int row_offset, int col_offset) {
@@ -276,8 +265,19 @@ Bufrow* buffer_insert_row(Buffer* buf, size_t position) {
 
     buf->num_rows++;
 
-    p_buffer_fix_row_numbers(buf, position);
     
+
+    undostack_push(&buf->undostack,
+    (UndoStackCmd) {
+        .kind = UCMD_INSERT_ROW,
+        .location = (UndoStackCmdLocation) {
+            .buf_id = buffer_getid(buf),
+            .row = row->number + 1,
+            .col = 0
+        }
+    });
+
+    p_buffer_fix_row_numbers(buf, position);
     //validate_linked_list(buf);
     //buf->num_row_nodes++;
     return new_row;
@@ -294,7 +294,11 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
     if(row == NULL) {
         return false;
     }
-        
+    
+    // Save for undostack.
+    size_t row_number = row->number;
+    char* row_data
+         = (buf->undostack.flags & UNDOSTACK_IGNORE_PUSH) ? NULL : bufrow_datadup(row);
 
     if(row->next) {
         row->next->prev = row->prev;
@@ -333,7 +337,21 @@ bool buffer_delete_row(Buffer* buf, size_t position) {
     //printf("Remove %p  \033[33mTODO: Nodes may become fragmented.\033[0m\n", row);
     buf->num_rows--;
 
+
     p_buffer_fix_row_numbers(buf, position);
+
+    undostack_push(&buf->undostack,
+    (UndoStackCmd) {
+        .kind = UCMD_DELETE_ROW,
+        .location = (UndoStackCmdLocation) {
+            .buf_id = buffer_getid(buf),
+            .row = row_number,
+            .col = 0
+        },
+        .data_as.char_array = row_data
+    });
+
+
     return true;
 }
 
@@ -369,8 +387,9 @@ Bufrow* buffer_get_row(Buffer* buf, ssize_t position) {
 
 
 void buffer_eventkey_enter(Buffer* buf, Bufrow* row) {
+    undostack_start_new_group(&buf->undostack);
+    
     if(!buffer_insert_row(buf, buf->cursor_row)) {
-        logprintf(LOG_ERROR, "(textmode.so) Failed to insert row (enter)");
         return;
     }
 
@@ -395,6 +414,8 @@ void buffer_eventkey_enter(Buffer* buf, Bufrow* row) {
 }
 
 void buffer_eventkey_backspace(Buffer* buf, Bufrow* row) {
+    undostack_start_new_group(&buf->undostack);
+    
     if(buf->cursor_col > 0) {
         bufrow_delete_char(row, buf->cursor_col-1);
         buffer_move_cursor(buf, 0, -1);
